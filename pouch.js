@@ -260,7 +260,10 @@ function find(resource) {
       console.log('finding', resource, JSON.stringify({selector}), 'in', (performance.now() - start).toFixed(2), 'ms')
       return doc.docs.reverse()
     })
-    .catch(console.log)
+    .catch(_ => {
+      console.log('finding', resource, JSON.stringify({selector}), 'in', (performance.now() - start).toFixed(2), 'ms')
+      console.log(_)
+    })
   }
 }
 
