@@ -17,11 +17,10 @@ var local     = {}
 // post('/users/:id/session', users.session.post)  //Login
 // del('/users/:id/session', users.session.delete) //Logout
 Db.prototype.users = function(selector) {
-
   var session = JSON.parse(sessionStorage.getItem('session') || "null")
 
   if (session && typeof selector != 'object')
-    selector = selector ? {name:session.name} : {account:session.account}
+    selector = selector ? {name:session.name} : {account:session.account._id}
 
   var results = {
     then(a,b) {
@@ -232,7 +231,7 @@ function db(name) {
       if (name == 'drugs')
         index = ['name', 'ndc']
       else if (name == 'accounts')
-        index = []
+        index = ['state']
       else if (name == 'users')
         index = ['name', 'account']
       else if (name == 'shipments')
