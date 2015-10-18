@@ -269,14 +269,7 @@ function find(resource) {
 
 function post(resource) {
   return body => {
-    var start = Date.now()
     return ajax({method:'POST', url:'http://localhost:3000/'+resource, body})
-    .then(res => {
-      body._id = res.id
-      body._rev = res.rev
-      console.log(Date.now()-start, 'ms saved remotely, now saving locally', body)
-      return Db.prototype[resource].put(body)
-    })
   }
 }
 
