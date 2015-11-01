@@ -250,8 +250,15 @@ function db(name) {
 function find(resource) {
   return selector => {
     var start = performance.now()
+    var opts = {include_docs:true}
+    //drug _id is NDC (number) which starts before _ alphabetically
+    if (resource == 'drugs')
+      opts.endkey = '_design'
+    else
+      opts.startkey = '_design\uffff'
+
     if ( ! selector) {
-      return local[resource].allDocs({startkey:'_design\uffff', include_docs:true}).then(doc => {
+      return local[resource].allDocs(opts).then(doc => {
         console.log(doc, 'alldocs:', resource, 'in', (performance.now() - start).toFixed(2), 'ms')
         return doc.rows.map(doc => doc.doc).reverse()
       })
