@@ -259,7 +259,7 @@ function find(resource) {
 
     if ( ! selector) {
       return local[resource].allDocs(opts).then(doc => {
-        console.log(doc, 'alldocs:', resource, 'in', (performance.now() - start).toFixed(2), 'ms')
+        console.log('alldocs:', resource, 'in', (performance.now() - start).toFixed(2), 'ms')
         return doc.rows.map(doc => doc.doc).reverse()
       })
     }
@@ -310,18 +310,12 @@ function helper(find, selector, method, url, body) {
   function all(docs) {
     var all = []
     for (var doc of docs)
-    console.log({
+    all.push(ajax({
       method:method,
       url:'//localhost:3000/'+url.replace(':id', doc._id.replace('org.couchdb.user:', '')),
       body:body,
       json:!!body
-    })
-      all.push(ajax({
-        method:method,
-        url:'//localhost:3000/'+url.replace(':id', doc._id.replace('org.couchdb.user:', '')),
-        body:body,
-        json:!!body
-      }))
+    }))
     return Promise.all(all)
   }
 }
