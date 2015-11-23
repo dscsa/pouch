@@ -258,9 +258,10 @@ function find(resource) {
       opts.startkey = '_design\uffff'
 
     if ( ! selector) {
-      return local[resource].allDocs(opts).then(doc => {
+      return local[resource].allDocs(opts).then(docs => {
+        console.log('docs', docs)
         console.log('alldocs:', resource, 'in', (performance.now() - start).toFixed(2), 'ms')
-        return doc.rows.map(doc => doc.doc).reverse()
+        return docs.rows.map(doc => doc.doc).reverse()
       })
     }
     return local[resource].find({selector}).then(doc => {
