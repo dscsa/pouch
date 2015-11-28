@@ -9,6 +9,7 @@ var synced    = {}
 var remote    = {}
 var local     = {}
 
+
 //User Resource Endpoint
 // get('/users', users.list, {strict:true})        //TODO only show logged in account's users
 // post('/users', users.post)                      //TODO only create user for logged in account
@@ -194,13 +195,13 @@ var shipments = methods('shipments')
 // get('/drugs', drugs.list, {strict:true})
 // post('/drugs', drugs.post)               //Create new record in DB with short uuid
 // all('/drugs/:id', drugs.doc)             //TODO should PUT be admin only?
-Db.prototype.drugs = function(selector) {
+Db.prototype.drugs = function(selector, limit) {
   var results = {
     then(a,b) {
-      return drugs(selector).then(a,b)
+      return drugs(selector, limit).then(a,b)
     },
     catch(a) {
-      return drugs(selector).catch(a)
+      return drugs(selector, limit).catch(a)
     }
   }
 
@@ -216,8 +217,29 @@ resources.forEach(r => {
       synced[r] = remote[r].sync(local[r], {live:true, retry:true, filter})
 })
 
+// save it
+local['drugs'].put({_id: '_design/drug', views: {search:{map:drugSearch.toString()}}})
+.then(function () {
+  console.log('Building drug search index.  This may take a while...')
+  return local['drugs'].query('drug/search', {limit:0}).then(console.log)
+})
+.catch(function(){})
+
 function filter(doc) {
     return doc._id.indexOf('_design') !== 0
+}
+
+function drugSearch(doc) {
+  log('doc', doc)
+  var names = doc.names.concat([doc.ndc9, doc.upc])
+  var str   = doc.ndc9+" "+doc.names.join(", ")+" "+doc.form
+  for (var i in names) {
+    var name = names[i]
+    for (var j=4; j<=name.length; j++) {
+      var key = name.slice(0, j)
+      emit(key.toLowerCase(), str.split(key))
+    }
+  }
 }
 
 //Build all the type's indexes
@@ -229,7 +251,7 @@ function db(name) {
     if (info.update_seq === 0) { //info.update_seq
       var index
       if (name == 'drugs')
-        index = ['name', 'ndc']
+        index = []
       else if (name == 'accounts')
         index = ['state']
       else if (name == 'users')
@@ -248,7 +270,8 @@ function db(name) {
 }
 
 function find(resource) {
-  return selector => {
+  return (selector, limit) => {
+    console.log(selector, limit)
     var start = performance.now()
     var opts = {include_docs:true}
     //drug _id is NDC (number) which starts before _ alphabetically
@@ -264,12 +287,28 @@ function find(resource) {
         return docs.rows.map(doc => doc.doc).reverse()
       })
     }
-    return local[resource].find({selector}).then(doc => {
-      console.log('finding', resource, JSON.stringify({selector}), 'in', (performance.now() - start).toFixed(2), 'ms')
+
+    if (limit) {
+      console.log('limit', limit)
+      var query = {
+        query: selector,
+        fields: ['name'],
+        include_docs: true,
+        highlighting: true
+      }
+      return local[resource].search(query).then(doc => {
+        console.log('finding', resource, JSON.stringify(query), 'in', (performance.now() - start).toFixed(2), 'ms')
+        return doc.docs.reverse()
+      })
+      .catch(console.log)
+    }
+
+    return local[resource].find({selector, limit}).then(doc => {
+      console.log('finding', resource, JSON.stringify({selector, limit}), 'in', (performance.now() - start).toFixed(2), 'ms')
       return doc.docs.reverse()
     })
     .catch(_ => {
-      console.log('finding', resource, JSON.stringify({selector}), 'in', (performance.now() - start).toFixed(2), 'ms')
+      console.log('finding', resource, JSON.stringify({selector, limit}), 'in', (performance.now() - start).toFixed(2), 'ms')
       console.log(_)
     })
   }
@@ -292,15 +331,21 @@ function put(resource) {
 }
 
 function query(resource) {
-  return map => {
-    return local[resource].query({map}, {include_docs:true})
-    .then(docs => docs.rows.map(doc => doc.doc).reverse())
+  return (view, opts) => {
+    return local[resource].query(view, opts)
+    .then(docs => docs.rows)
   }
 }
 
 function remove(resource) {
   return doc => {
     return local[resource].remove(doc)
+  }
+}
+
+function bulkDocs(resource) {
+  return doc => {
+    return local[resource].bulkDocs(doc)
   }
 }
 
@@ -322,9 +367,10 @@ function helper(find, selector, method, url, body) {
 }
 
 function methods(resource) {
-  Db.prototype[resource].post   = post(resource)
-  Db.prototype[resource].put    = put(resource)
-  Db.prototype[resource].query  = query(resource)
-  Db.prototype[resource].remove = remove(resource)
+  Db.prototype[resource].post     = post(resource)
+  Db.prototype[resource].put      = put(resource)
+  Db.prototype[resource].bulkDocs = bulkDocs(resource)
+  Db.prototype[resource].query    = query(resource)
+  Db.prototype[resource].remove   = remove(resource)
   return find(resource)
 }
