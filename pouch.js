@@ -184,13 +184,12 @@ Db.prototype.shipments = function(selector) {
         throw Error('not implemented')
       }
     },
-    manifest:{
-      get() {
-        throw Error('not implemented')
-      },
-      remove() {
-        throw Error('not implemented')
-      }
+    attachment:function(arg) {
+      if (typeof arg == 'string')
+        return local['shipments'].getAttachment(selector._id, arg)
+      console.log('saving attachment', selector._id, arg._id, arg._rev, arg, arg.type)
+      return local['shipments']
+      .putAttachment(selector._id, arg._id, arg._rev, arg, arg.type)
     }
   }
 
