@@ -2,12 +2,18 @@ window.Db = function Db() {}
 
 //Intention to keep syntax as close to the REST API as possible.  For example that is why we do
 //this.db.users({_id:123}).session.post(password) and not this.db.users().session.post({_id:123, password:password})
-
 var resources = ['drugs', 'accounts', 'users', 'shipments', 'transactions']
-var ajax      = PouchDB.utils.toPromise(PouchDB.ajax)
 var synced    = {}
 var remote    = {}
 var local     = {}
+var ajax      = function(opts) {
+  return new Promise((resolve, reject) => {
+    PouchDB.ajax(opts, function(err, res) {
+      if (err) reject(err)
+      else resolve(res)
+    })
+  })
+}
 
 
 //User Resource Endpoint
@@ -367,10 +373,10 @@ function helper(find, selector, method, url, body) {
 }
 
 function methods(resource) {
-  Db.prototype[resource].post     = post(resource)
-  Db.prototype[resource].put      = put(resource)
-  Db.prototype[resource].bulkDocs = bulkDocs(resource)
-  Db.prototype[resource].query    = query(resource)
-  Db.prototype[resource].remove   = remove(resource)
+  Db.prototype[resource].post          = post(resource)
+  Db.prototype[resource].put           = put(resource)
+  Db.prototype[resource].bulkDocs      = bulkDocs(resource)
+  Db.prototype[resource].query         = query(resource)
+  Db.prototype[resource].remove        = remove(resource)
   return find(resource)
 }
