@@ -7,7 +7,7 @@ var synced    = {}
 var remote    = {}
 var local     = {}
 var ajax      = function(opts) {
-  return new Promise((resolve, reject) => {
+  return new Promise(function(resolve, reject) {
     PouchDB.ajax(opts, function(err, res) {
       if (err) reject(err)
       else resolve(res)
@@ -44,20 +44,20 @@ Db.prototype.users = function(selector) {
 
   results.session.post = function(password) {
     return helper(users, selector, 'POST', 'users/:id/session', password)
-    .then(sessions => {
+    .then(function(sessions) {
       session = sessions[0]
       sessionStorage.setItem('session', JSON.stringify(session))
-      return Promise.all(resources.map(name => {
+      return Promise.all(resources.map(function(name) {
         //Only sync resources after user login. https://github.com/pouchdb/pouchdb/issues/4266
         return remote[name].sync(local[name], {retry:true, filter})
-        .then(_ => {
+        .then(function() {
           synced[name] = remote[name].sync(local[name], {live:true, retry:true, filter})
           //Output running list of what is left because syncing takes a while
           //Can't use original index because we are deleting items as we go
           results.session.loading.splice(results.session.loading.indexOf(name), 1)
         })
       }))
-      .then(_ => sessions[0])
+      .then(function(){return sessions[0]})
     })
   }
 
@@ -65,14 +65,14 @@ Db.prototype.users = function(selector) {
     if ( ! session) return Promise.resolve(true)
     sessionStorage.removeItem('session')
     return helper(users, selector, 'DELETE', 'users/:id/session')
-    .then(_ => {
+    .then(function() {
       //Destroying will stop the rest of the dbs from syncing
       synced.accounts && synced.accounts.cancel();
       synced.drugs && synced.drugs.cancel();
 
       return Promise.all(['users', 'shipments', 'transactions']
-      .map(resource => {
-        return local[resource].destroy().then(_ => {
+      .map(function(resource) {
+        return local[resource].destroy().then(function() {
             results.session.loading.push(resources)
             return db(resource)
         })
@@ -214,7 +214,37 @@ Db.prototype.drugs = function(selector, limit) {
 }
 var drugs = methods('drugs')
 
-resources.forEach(r => {
+Db.prototype.genericSearch = function(term) {
+  start = Date.now()
+  var tokens  = term.split(/ (?=\d|$)/)
+  var results = []
+  var drugs   = genericSearch[tokens[0]] || []
+
+  if (tokens[1]) {
+    tokens[1] = RegExp('^'+tokens[1].replace('.', '\\.'))
+    for (var i in drugs) {
+      for (var j in drugs[i].generics) {
+        if (tokens[1].test(drugs[i].generics[j].strength)) {
+          results.push(drugs[i]); break
+        }
+      }
+    }
+  }
+  else {
+    results = Array.from(drugs)
+  }
+  console.log('genericSearch for', term, 'with', tokens, 'in', Date.now()-start)
+  return results
+}
+
+Db.prototype.ndcSearch = function(term) {
+  start = Date.now()
+  var drugs   = ndcSearch[term.replace('-', '')] || []
+  console.log('ndcSearch for', term, 'in', Date.now()-start)
+  return Array.from(drugs)
+}
+
+resources.forEach(function(r) {
     db(r)
     remote[r] = new PouchDB('http://localhost:3000/'+r)
 
@@ -222,41 +252,92 @@ resources.forEach(r => {
       synced[r] = remote[r].sync(local[r], {live:true, retry:true, filter})
 })
 
-// save it
-local['drugs'].put({_id: '_design/drug', views: {search:{map:drugSearch.toString()}}})
-.then(function () {
-  console.log('Building drug search index.  This may take a while...')
-  return local['drugs'].query('drug/search', {limit:0}).then(console.log)
-})
-.catch(function(){})
-
 function filter(doc) {
     return doc._id.indexOf('_design') !== 0
 }
 
-function drugSearch(doc) {
-  log('doc', doc)
-  var names = doc.names.concat([doc.ndc9, doc.upc])
-  var str   = doc.ndc9+" "+doc.names.join(", ")+" "+doc.form
-  for (var i in names) {
-    var name = names[i]
-    for (var j=4; j<=name.length; j++) {
-      var key = name.slice(0, j)
-      emit(key.toLowerCase(), str.split(key))
+var start = Date.now()
+// save drug search query since mango's $elemMatch seems to be do an in-memory search with something
+// like this.db.drugs({generic:{$elemMatch:{name:{$gt:name}, strength:{$gt:strength}}}}) being ideal
+// intead we get the entire drug database and put every letter of every drug as keys in an object so
+// that autosuggest is O(1).  Right now the allDocs query takes ~10 secs and the indexing 0.2 secs
+// the results are typically given in <10 milliseconds.
+
+var genericSearch = {}
+var ndcSearch = {}
+Db.prototype.drugs().then(function(drugs) {
+  console.log('drugs allDocs', Date.now()-start)
+  for (var i in drugs) {
+    for (var j in drugs[i].generics) {
+      var name = drugs[i].generics[j].name.toLowerCase()
+      for (var k=3; k<=name.length;k++) {
+        var key = name.slice(0, k)
+        genericSearch[key] = genericSearch[key] || []
+        genericSearch[key].push(drugs[i])
+      }
+    }
+
+    var ndcs = [drugs[i].ndc9, drugs[i].upc]
+    for (var j in ndcs) {
+      for (var k=3; k<=ndcs[j].length;k++) {
+        var key = ndcs[j].slice(0, k)
+        ndcSearch[key] = ndcSearch[key] || []
+        ndcSearch[key].push(drugs[i])
+      }
     }
   }
-}
+  console.log('ndcSearch', ndcSearch)
+  Db.prototype.ndcSearch.ready = true
+  Db.prototype.genericSearch.ready = true
+})
 
+// local['drugs'].put({_id: '_design/drug', views: {search:{map:drugSearch.toString()}}})
+// .then(function () {
+//   console.log('Building drug search index.  This may take a while...')
+//   return local['drugs'].query('drug/search', {limit:0}).then(console.log)
+// })
+// .catch(function(){})
+//
+//
+//
+// function drugSearch(doc) {
+//   function reduce(prev, curr) {
+//     return prev+", "+curr.name+" "+curr.strength
+//   }
+//   var generic  = doc.generic
+//   var result   = doc.ndc9+generic.reduce(reduce, "")+" "+doc.form
+//   for (var i in generic) {
+//     var keys = [generic[i].name.toLowerCase(), generic[i].strength.toLowerCase()]
+//     log('keys',keys)
+//     emit(keys, result)
+//   }
+// }
+
+// Full text version
+// function drugSearch(doc) {
+//   log('doc', doc)
+//   var names = doc.names.concat([doc.ndc9, doc.upc])
+//   var str   = doc.ndc9+" "+doc.names.join(", ")+" "+doc.form
+//   for (var i in names) {
+//     var name = names[i]
+//     for (var j=4; j<=name.length; j++) {
+//       var key = name.slice(0, j)
+//       emit(key.toLowerCase(), str.split(key))
+//     }
+//   }
+// }
+
+//local['drugs'].createIndex({index: {fields:['generic']}}).then(console.log)
 //Build all the type's indexes
 //PouchDB.debug.enable('pouchdb:find')
 //PouchDB.debug.disable('pouchdb:find')
 function db(name) {
   local[name] = new PouchDB(name, {auto_compaction:true})
-  return local[name].info().then(info => {
+  return local[name].info().then(function(info) {
     if (info.update_seq === 0) { //info.update_seq
       var index
       if (name == 'drugs')
-        index = []
+        index = [['_id', 'upc', 'ndc9'], 'generic', ['generic.name', 'generic.strength']]
       else if (name == 'accounts')
         index = ['state']
       else if (name == 'users')
@@ -275,8 +356,8 @@ function db(name) {
 }
 
 function find(resource) {
-  return (selector, limit) => {
-    console.log(selector, limit)
+  return function(selector, limit) {
+    console.log(resource, selector, limit)
     var start = performance.now()
     var opts = {include_docs:true}
     //drug _id is NDC (number) which starts before _ alphabetically
@@ -286,10 +367,10 @@ function find(resource) {
       opts.startkey = '_design\uffff'
 
     if ( ! selector) {
-      return local[resource].allDocs(opts).then(docs => {
+      return local[resource].allDocs(opts).then(function(docs) {
         console.log('docs', docs)
         console.log('alldocs:', resource, 'in', (performance.now() - start).toFixed(2), 'ms')
-        return docs.rows.map(doc => doc.doc).reverse()
+        return docs.rows.map(function(doc) { return doc.doc }).reverse()
       })
     }
 
@@ -301,18 +382,18 @@ function find(resource) {
         include_docs: true,
         highlighting: true
       }
-      return local[resource].search(query).then(doc => {
+      return local[resource].search(query).then(function(doc) {
         console.log('finding', resource, JSON.stringify(query), 'in', (performance.now() - start).toFixed(2), 'ms')
         return doc.docs.reverse()
       })
       .catch(console.log)
     }
 
-    return local[resource].find({selector, limit}).then(doc => {
+    return local[resource].find({selector, limit}).then(function(doc) {
       console.log('finding', resource, JSON.stringify({selector, limit}), 'in', (performance.now() - start).toFixed(2), 'ms')
       return doc.docs.reverse()
     })
-    .catch(_ => {
+    .catch(function(_) {
       console.log('finding', resource, JSON.stringify({selector, limit}), 'in', (performance.now() - start).toFixed(2), 'ms')
       console.log(_)
     })
@@ -320,15 +401,15 @@ function find(resource) {
 }
 
 function post(resource) {
-  return body => {
+  return function(body) {
     return ajax({method:'POST', url:'http://localhost:3000/'+resource, body})
   }
 }
 
 function put(resource) {
-  return doc => {
+  return function(doc) {
     return local[resource].put(doc)
-    .then(res => {
+    .then(function(res) {
       doc._rev = res.rev
       return doc
     })
@@ -336,20 +417,20 @@ function put(resource) {
 }
 
 function query(resource) {
-  return (view, opts) => {
+  return function(view, opts) {
     return local[resource].query(view, opts)
-    .then(docs => docs.rows)
+    .then(function(docs) { return docs.rows})
   }
 }
 
 function remove(resource) {
-  return doc => {
+  return function(doc) {
     return local[resource].remove(doc)
   }
 }
 
 function bulkDocs(resource) {
-  return doc => {
+  return function(doc) {
     return local[resource].bulkDocs(doc)
   }
 }
