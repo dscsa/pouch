@@ -27,7 +27,7 @@ Db.prototype.users = function(selector) {
   var session = JSON.parse(sessionStorage.getItem('session') || "null")
 
   if (session && typeof selector != 'object')
-    selector = selector ? {name:session.name} : {account:session.account._id}
+    selector = selector ? {name:session.name} : {'account._id':session.account._id}
 
   var results = {
     then(a,b) {
@@ -337,15 +337,15 @@ function db(name) {
     if (info.update_seq === 0) { //info.update_seq
       var index
       if (name == 'drugs')
-        index = [['_id', 'upc', 'ndc9'], 'generic', ['generic.name', 'generic.strength']]
+        index = []
       else if (name == 'accounts')
         index = ['state']
       else if (name == 'users')
-        index = ['name', 'account']
+        index = ['name', 'account._id'] //account._id
       else if (name == 'shipments')
-        index = ['tracking', 'to.account', 'from.account']
+        index = ['tracking', 'account.to._id', 'account.from._id'] //to.account._id  //from.account._id
       else if (name == 'transactions')
-        index = ['shipment']
+        index = ['shipment._id']
 
       for (var i of index) {
         //TODO capture promises and return Promise.all()?
