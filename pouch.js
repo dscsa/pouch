@@ -214,36 +214,6 @@ Db.prototype.drugs = function(selector, limit) {
 }
 var drugs = methods('drugs')
 
-Db.prototype.genericSearch = function(term) {
-  start = Date.now()
-  var tokens  = term.split(/ (?=\d|$)/)
-  var results = []
-  var drugs   = genericSearch[tokens[0]] || []
-
-  if (tokens[1]) {
-    tokens[1] = RegExp('^'+tokens[1].replace('.', '\\.'))
-    for (var i in drugs) {
-      for (var j in drugs[i].generics) {
-        if (tokens[1].test(drugs[i].generics[j].strength)) {
-          results.push(drugs[i]); break
-        }
-      }
-    }
-  }
-  else {
-    results = Array.from(drugs)
-  }
-  console.log('genericSearch for', term, 'with', tokens, 'in', Date.now()-start)
-  return results
-}
-
-Db.prototype.ndcSearch = function(term) {
-  start = Date.now()
-  var drugs   = ndcSearch[term.replace('-', '')] || []
-  console.log('ndcSearch for', term, 'in', Date.now()-start)
-  return Array.from(drugs)
-}
-
 resources.forEach(function(r) {
     db(r)
     remote[r] = new PouchDB('http://localhost:3000/'+r)
@@ -256,7 +226,7 @@ function filter(doc) {
     return doc._id.indexOf('_design') !== 0
 }
 
-var start = Date.now()
+var start = performance.now()
 // save drug search query since mango's $elemMatch seems to be do an in-memory search with something
 // like this.db.drugs({generic:{$elemMatch:{name:{$gt:name}, strength:{$gt:strength}}}}) being ideal
 // intead we get the entire drug database and put every letter of every drug as keys in an object so
@@ -265,31 +235,81 @@ var start = Date.now()
 
 var genericSearch = {}
 var ndcSearch = {}
-Db.prototype.drugs().then(function(drugs) {
-  console.log('drugs allDocs', Date.now()-start)
-  for (var i in drugs) {
-    for (var j in drugs[i].generics) {
-      var name = drugs[i].generics[j].name.toLowerCase()
-      for (var k=3; k<=name.length;k++) {
-        var key = name.slice(0, k)
-        genericSearch[key] = genericSearch[key] || []
-        genericSearch[key].push(drugs[i])
+Db.prototype.search = Db.prototype.drugs().then(function(drugs) {
+    for (var i in drugs) {
+
+      drugs[i].generic = drugs[i].generics.map(generic => generic.name+" "+generic.strength).join(', ')
+
+      for (var j in drugs[i].generics) {
+        var name = drugs[i].generics[j].name.toLowerCase()
+        for (var k=3; k<=name.length;k++) {
+          var key = name.slice(0, k)
+          genericSearch[key] = genericSearch[key] || []
+          genericSearch[key].push(drugs[i])
+        }
+      }
+
+      var len = Math.max(drugs[i].ndc9.length, drugs[i].upc.length)
+
+      for (var k=3; k<=len;k++) {
+        var key1 = drugs[i].ndc9.slice(0, k)
+        var key2 = drugs[i].upc.slice(0, k)
+
+        ndcSearch[key1] = ndcSearch[key1] || []
+        ndcSearch[key1].push(drugs[i])
+
+        if (key1 != key2) { //avoid duplicates for NDC fragments
+          ndcSearch[key2] = ndcSearch[key2] || []
+          ndcSearch[key2].push(drugs[i])
+        }
       }
     }
 
-    var ndcs = [drugs[i].ndc9, drugs[i].upc]
-    for (var j in ndcs) {
-      for (var k=3; k<=ndcs[j].length;k++) {
-        var key = ndcs[j].slice(0, k)
-        ndcSearch[key] = ndcSearch[key] || []
-        ndcSearch[key].push(drugs[i])
+    function sort(a, b) {
+      if (a.generic > b.generic) return 1
+      if (a.generic < b.generic) return -1
+    }
+
+    for (var i in genericSearch) {
+      genericSearch[i] = genericSearch[i].sort(sort)
+    }
+    for (var i in ndcSearch) {
+      ndcSearch[i] = ndcSearch[i].sort(sort)
+    }
+    console.log('ndc/generic search ready', (performance.now()-start).toFixed(2))
+})
+
+
+Db.prototype.search.generic = function(term) {
+  start = Date.now()
+  var tokens  = term.split(/ (?=\d|$)/)
+  var results = []
+  var drugs   = genericSearch[tokens[0]] || []
+
+  if (tokens[1]) {
+    tokens[1] = RegExp('^'+tokens[1].replace('.', '\\.'), 'i')
+    for (var i in drugs) {
+      for (var j in drugs[i].generics) {
+        if (tokens[1].test(drugs[i].generics[j].strength)) {
+          results.push(drugs[i]); break
+        }
       }
     }
   }
-  console.log('ndcSearch', ndcSearch)
-  Db.prototype.ndcSearch.ready = true
-  Db.prototype.genericSearch.ready = true
-})
+  else {
+    results = Array.from(drugs)
+  }
+  console.log('genericSearch for', term, 'with', tokens, 'in', Date.now()-start, 'count', results.length)
+  return results
+}
+
+Db.prototype.search.ndc = function(term) {
+  start = Date.now()
+  var drugs   = ndcSearch[term.replace('-', '')] || []
+  console.log('ndcSearch for', term, 'in', Date.now()-start)
+  return Array.from(drugs)
+}
+
 
 // local['drugs'].put({_id: '_design/drug', views: {search:{map:drugSearch.toString()}}})
 // .then(function () {
@@ -339,7 +359,7 @@ function db(name) {
       if (name == 'drugs')
         index = []
       else if (name == 'accounts')
-        index = ['state']
+        index = [['state', '_id']]
       else if (name == 'users')
         index = ['name', 'account._id'] //account._id
       else if (name == 'shipments')
@@ -357,7 +377,6 @@ function db(name) {
 
 function find(resource) {
   return function(selector, limit) {
-    console.log(resource, selector, limit)
     var start = performance.now()
     var opts = {include_docs:true}
     //drug _id is NDC (number) which starts before _ alphabetically
@@ -368,7 +387,6 @@ function find(resource) {
 
     if ( ! selector) {
       return local[resource].allDocs(opts).then(function(docs) {
-        console.log('docs', docs)
         console.log('alldocs:', resource, 'in', (performance.now() - start).toFixed(2), 'ms')
         return docs.rows.map(function(doc) { return doc.doc }).reverse()
       })
