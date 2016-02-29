@@ -203,6 +203,45 @@ var shipments = methods('shipments')
 Db.prototype.drugs = function(selector, limit) {
   var results = {
     then(a,b) {
+
+      var start   = Date.now()
+
+      if(selector && selector.generic) {
+        var tokens  = selector.generic.split(/ (?=\d|$)/)
+        var opts    = {startkey:tokens[0], endkey:tokens[0]+'\uffff'}
+console.log('this', this)
+        return Db.prototype.drugs.query('drug/generic', opts)
+        .then(drugs => {
+          if (tokens[1]) {
+            var results = []
+            tokens[1] = RegExp('^'+tokens[1].replace('.', '\\.'), 'i')
+            for (var i in drugs) {
+              for (var j in drugs[i].value.generics) {
+                if (tokens[1].test(drugs[i].value.generics[j].strength)) {
+                  results.push(drugs[i].value); break
+                }
+              }
+            }
+            //console.log(results.length, 'results for', tokens, 'in', Date.now()-start)
+            return results
+          }
+          else {
+            //console.log(drugs.length, 'results for', tokens, 'in', Date.now()-start)
+            return drugs.map(drug => drug.value)
+          }
+        })
+        .then(a, b)
+      }
+
+      if(selector && selector.ndc) {
+        let term = selector.ndc.replace('-', '')
+        let ndc9 = drugs({$and:[{ndc9:{$gte:term}}, {ndc9:{$lt:term+'\uffff'}}]}, 200)
+        let upc  = drugs({$and:[{upc:{$gte:term}}, {upc:{$lt:term+'\uffff'}}]}, 200)
+        return Promise.all([ndc9, upc]).then(results => {
+          return results[0].filter(drug => drug.upc.length != 9).concat(results[1])
+        }).then(a,b)
+      }
+
       return drugs(selector, limit).then(a,b)
     },
     catch(a) {
@@ -226,138 +265,38 @@ function filter(doc) {
     return doc._id.indexOf('_design') !== 0
 }
 
-var start = performance.now()
-// save drug search query since mango's $elemMatch seems to be do an in-memory search with something
-// like this.db.drugs({generic:{$elemMatch:{name:{$gt:name}, strength:{$gt:strength}}}}) being ideal
-// intead we get the entire drug database and put every letter of every drug as keys in an object so
-// that autosuggest is O(1).  Right now the allDocs query takes ~10 secs and the indexing 0.2 secs
-// the results are typically given in <10 milliseconds.
-
-var genericSearch = {}
-var ndcSearch = {}
-Db.prototype.search = Db.prototype.drugs().then(function(drugs) {
-    for (var i in drugs) {
-
-      drugs[i].generic = drugs[i].generics.map(generic => generic.name+" "+generic.strength).join(', ')
-
-      for (var j in drugs[i].generics) {
-        var name = drugs[i].generics[j].name.toLowerCase()
-        for (var k=3; k<=name.length;k++) {
-          var key = name.slice(0, k)
-          genericSearch[key] = genericSearch[key] || []
-          genericSearch[key].push(drugs[i])
-        }
-      }
-
-      var len = Math.max(drugs[i].ndc9.length, drugs[i].upc.length)
-
-      for (var k=3; k<=len;k++) {
-        var key1 = drugs[i].ndc9.slice(0, k)
-        var key2 = drugs[i].upc.slice(0, k)
-
-        ndcSearch[key1] = ndcSearch[key1] || []
-        ndcSearch[key1].push(drugs[i])
-
-        if (key1 != key2) { //avoid duplicates for NDC fragments
-          ndcSearch[key2] = ndcSearch[key2] || []
-          ndcSearch[key2].push(drugs[i])
-        }
-      }
-    }
-
-    function sort(a, b) {
-      if (a.generic > b.generic) return 1
-      if (a.generic < b.generic) return -1
-    }
-
-    for (var i in genericSearch) {
-      genericSearch[i] = genericSearch[i].sort(sort)
-    }
-    for (var i in ndcSearch) {
-      ndcSearch[i] = ndcSearch[i].sort(sort)
-    }
-    console.log('ndc/generic search ready', (performance.now()-start).toFixed(2))
-})
-
-
-Db.prototype.search.generic = function(term) {
-  start = Date.now()
-  var tokens  = term.split(/ (?=\d|$)/)
-  var results = []
-  var drugs   = genericSearch[tokens[0]] || []
-
-  if (tokens[1]) {
-    tokens[1] = RegExp('^'+tokens[1].replace('.', '\\.'), 'i')
-    for (var i in drugs) {
-      for (var j in drugs[i].generics) {
-        if (tokens[1].test(drugs[i].generics[j].strength)) {
-          results.push(drugs[i]); break
-        }
-      }
-    }
+function genericSearch(doc) {
+  for (var i in doc.generics) {
+    //log('generic map',doc.generics[i].name.toLowerCase())
+    emit(doc.generics[i].name.toLowerCase(), doc)
   }
-  else {
-    results = Array.from(drugs)
-  }
-  console.log('genericSearch for', term, 'with', tokens, 'in', Date.now()-start, 'count', results.length)
-  return results
 }
 
-Db.prototype.search.ndc = function(term) {
-  start = Date.now()
-  var drugs   = ndcSearch[term.replace('-', '')] || []
-  console.log('ndcSearch for', term, 'in', Date.now()-start)
-  return Array.from(drugs)
-}
-
-
-// local['drugs'].put({_id: '_design/drug', views: {search:{map:drugSearch.toString()}}})
-// .then(function () {
-//   console.log('Building drug search index.  This may take a while...')
-//   return local['drugs'].query('drug/search', {limit:0}).then(console.log)
-// })
-// .catch(function(){})
-//
-//
-//
-// function drugSearch(doc) {
-//   function reduce(prev, curr) {
-//     return prev+", "+curr.name+" "+curr.strength
-//   }
-//   var generic  = doc.generic
-//   var result   = doc.ndc9+generic.reduce(reduce, "")+" "+doc.form
-//   for (var i in generic) {
-//     var keys = [generic[i].name.toLowerCase(), generic[i].strength.toLowerCase()]
-//     log('keys',keys)
-//     emit(keys, result)
-//   }
-// }
-
-// Full text version
-// function drugSearch(doc) {
-//   log('doc', doc)
-//   var names = doc.names.concat([doc.ndc9, doc.upc])
-//   var str   = doc.ndc9+" "+doc.names.join(", ")+" "+doc.form
-//   for (var i in names) {
-//     var name = names[i]
-//     for (var j=4; j<=name.length; j++) {
-//       var key = name.slice(0, j)
-//       emit(key.toLowerCase(), str.split(key))
-//     }
-//   }
-// }
-
-//local['drugs'].createIndex({index: {fields:['generic']}}).then(console.log)
 //Build all the type's indexes
 //PouchDB.debug.enable('pouchdb:find')
 //PouchDB.debug.disable('pouchdb:find')
 function db(name) {
   local[name] = new PouchDB(name, {auto_compaction:true})
   return local[name].info().then(function(info) {
-    if (info.update_seq === 0) { //info.update_seq
+    if (true) { //info.update_seq
       var index
-      if (name == 'drugs')
-        index = []
+      if (name == 'drugs') {
+        index = ['upc', 'ndc9']
+
+        //Unfortunately mango doesn't index arrays so we have to make a traditional map function
+        local.drugs.put({_id: '_design/drug', views:{
+          generic:{map:genericSearch.toString()}
+        }})
+        .then(function () {
+          console.log('Building drug generic indexes.  This may take a while...')
+          let start = Date.now()
+          local.drugs.query('drug/generic', {limit:0}).then(_=> console.log('Generic index built in', Date.now() - start))
+          //local.drugs.query('drug/ndc', {limit:0}).then(_=> console.log('NDC index built in', Date.now() - start))
+        })
+        .catch(function(e){
+          console.log(e)
+        })
+      }
       else if (name == 'accounts')
         index = [['state', '_id']]
       else if (name == 'users')
@@ -369,7 +308,9 @@ function db(name) {
 
       for (var i of index) {
         //TODO capture promises and return Promise.all()?
-        local[name].createIndex({index: {fields: Array.isArray(i) ? i : [i]}}).then(console.log)
+        local[name].createIndex({index: {fields: Array.isArray(i) ? i : [i]}}).then(_ => {
+          console.log('Index built', i, _)
+        })
       }
     }
   })
@@ -391,22 +332,7 @@ function find(resource) {
         return docs.rows.map(function(doc) { return doc.doc }).reverse()
       })
     }
-
-    if (limit) {
-      console.log('limit', limit)
-      var query = {
-        query: selector,
-        fields: ['name'],
-        include_docs: true,
-        highlighting: true
-      }
-      return local[resource].search(query).then(function(doc) {
-        console.log('finding', resource, JSON.stringify(query), 'in', (performance.now() - start).toFixed(2), 'ms')
-        return doc.docs.reverse()
-      })
-      .catch(console.log)
-    }
-
+    console.log('finding', resource, JSON.stringify({selector, limit}))
     return local[resource].find({selector, limit}).then(function(doc) {
       console.log('finding', resource, JSON.stringify({selector, limit}), 'in', (performance.now() - start).toFixed(2), 'ms')
       return doc.docs.reverse()
