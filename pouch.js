@@ -94,13 +94,13 @@ var users = methods('users')
 // get('/transactions/:id/history', transactions.history)          //Resursively retrieve transaction's history
 // post('/transactions/:id/captured', transactions.captured.post)  //New transaction created in inventory, available for further transactions
 // del('/transactions/:id/captured', transactions.captured.delete) //New transaction removed from inventory, cannot be done if item has further transaction
-Db.prototype.transactions = function(selector) {
+Db.prototype.transactions = function(selector, limit) {
   var results = {
     then(a,b) {
-      return transactions(selector).then(a,b)
+      return transactions(selector, limit).then(a,b)
     },
     catch(a) {
-      return transactions(selector).catch(a)
+      return transactions(selector, limit).catch(a)
     },
     history() {
       return helper(transactions, selector, 'GET', 'transactions/:id/history')
@@ -127,6 +127,7 @@ var transactions = methods('transactions')
 // post('/accounts/:id/authorized', accounts.authorized.post)  //Allow user to get, modify, & delete docs
 // del('/accounts/:id/authorized', accounts.authorized.delete) //Allow user to get, modify, & delete docs
 Db.prototype.accounts = function(selector) {
+
   var results = {
     then(a,b) {
       return accounts(selector).then(a,b)
@@ -408,13 +409,14 @@ function helper(find, selector, method, url, body) {
 
   function all(docs) {
     var all = []
-    for (var doc of docs)
-    all.push(ajax({
-      method:method,
-      url:'//localhost:3000/'+url.replace(':id', doc._id.replace('org.couchdb.user:', '')),
-      body:body,
-      json:!!body
-    }))
+    for (var doc of docs || []) {
+      all.push(ajax({
+        method:method,
+        url:'//localhost:3000/'+url.replace(':id', doc._id.replace('org.couchdb.user:', '')),
+        body:body,
+        json:true
+      }))
+    }
     return Promise.all(all)
   }
 }
@@ -430,4 +432,8 @@ function methods(resource) {
   Db.prototype[resource].query         = query(resource)
   Db.prototype[resource].remove        = remove(resource)
   return find(resource)
+}
+
+function saveSession() {
+  sessionStorage.setItem('session', JSON.stringify(session))
 }
