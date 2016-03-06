@@ -141,6 +141,7 @@ Db.prototype.accounts = function(selector) {
         return helper(accounts, selector, 'POST', 'accounts/:id/authorized')
       },
       remove() {
+        console.log('unauthorizing')
         return helper(accounts, selector, 'DELETE', 'accounts/:id/authorized')
       }
     }
@@ -209,20 +210,19 @@ Db.prototype.drugs = function(selector, limit) {
       var start   = Date.now()
 
       if(selector && selector.generic) {
-        var tokens  = selector.generic.split(/ (?=\d|$)/)
-        var opts    = {startkey:tokens[0], endkey:tokens[0]+'\uffff'}
-console.log('this', this)
+        //TODO can we abstract this into a {$text:term} mango query so that we can support more than just generic
+        var tokens = selector.generic.toLowerCase().replace('.', '\\.').split(/, |[, ]/g)
+        var opts   = {startkey:tokens[0], endkey:tokens[0]+'\uffff'}
         return Db.prototype.drugs.query('drug/generic', opts)
         .then(drugs => {
           if (tokens[1]) {
             var results = []
-            tokens[1] = RegExp('^'+tokens[1].replace('.', '\\.'), 'i')
+            //Use lookaheads to search for each word separately (no order)
+            var regex   = RegExp('(?=.*'+tokens.join(')(?=.*')+')', 'i')
             for (var i in drugs) {
-              for (var j in drugs[i].value.generics) {
-                if (tokens[1].test(drugs[i].value.generics[j].strength)) {
-                  results.push(drugs[i].value); break
-                }
               drugs[i].value.generic = genericName(drugs[i].value)
+              if (regex.test(drugs[i].value.generic)) {
+                results.push(drugs[i].value)
               }
             }
             //console.log(results.length, 'results for', tokens, 'in', Date.now()-start)
