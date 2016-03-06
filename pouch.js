@@ -220,6 +220,7 @@ console.log('this', this)
                 if (tokens[1].test(drugs[i].value.generics[j].strength)) {
                   results.push(drugs[i].value); break
                 }
+              drugs[i].value.generic = genericName(drugs[i].value)
               }
             }
             //console.log(results.length, 'results for', tokens, 'in', Date.now()-start)
@@ -227,7 +228,10 @@ console.log('this', this)
           }
           else {
             //console.log(drugs.length, 'results for', tokens, 'in', Date.now()-start)
-            return drugs.map(drug => drug.value)
+            return drugs.map(drug => {
+              drug.value.generic = genericName(drug.value)
+              return drug.value
+            })
           }
         })
         .then(a, b)
@@ -352,6 +356,9 @@ function post(resource) {
 
 function put(resource) {
   return function(doc) {
+    if (resource == 'drugs')
+      delete doc.generic
+
     return local[resource].put(doc)
     .then(function(res) {
       doc._rev = res.rev
@@ -394,6 +401,10 @@ function helper(find, selector, method, url, body) {
     }))
     return Promise.all(all)
   }
+}
+
+function genericName(drug) {
+  return drug.generics.map(g => g.name+" "+g.strength).join(', ')+' '+drug.form
 }
 
 function methods(resource) {
