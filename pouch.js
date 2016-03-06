@@ -6,6 +6,7 @@ var resources = ['drugs', 'accounts', 'users', 'shipments', 'transactions']
 var synced    = {}
 var remote    = {}
 var local     = {}
+var session   = JSON.parse(sessionStorage.getItem('session') || "null")
 var ajax      = function(opts) {
   return new Promise(function(resolve, reject) {
     PouchDB.ajax(opts, function(err, res) {
@@ -24,17 +25,16 @@ var ajax      = function(opts) {
 // post('/users/:id/session', users.session.post)  //Login
 // del('/users/:id/session', users.session.delete) //Logout
 Db.prototype.users = function(selector) {
-  var session = JSON.parse(sessionStorage.getItem('session') || "null")
 
-  if (session && typeof selector != 'object')
-    selector = selector ? {name:session.name} : {'account._id':session.account._id}
+  var userDefault    = session && {name:session.name}
+  var accountDefault = session && {'account._id':session.account._id}
 
   var results = {
     then(a,b) {
-      return users(selector).then(a,b)
+      return users(selector || accountDefault).then(a,b)
     },
     catch(a) {
-      return users(selector).catch(a)
+      return users(selector || accountDefault).catch(a)
     },
     //WARNING unlike other methods this one is syncronous
     session() {
@@ -43,10 +43,10 @@ Db.prototype.users = function(selector) {
   }
 
   results.session.post = function(password) {
-    return helper(users, selector, 'POST', 'users/:id/session', password)
+    return helper(users, selector || userDefault, 'POST', 'users/:id/session', password)
     .then(function(sessions) {
       session = sessions[0]
-      sessionStorage.setItem('session', JSON.stringify(session))
+      saveSession()
       return Promise.all(resources.map(function(name) {
         //Only sync resources after user login. https://github.com/pouchdb/pouchdb/issues/4266
         return remote[name].sync(local[name], {retry:true, filter})
@@ -63,8 +63,9 @@ Db.prototype.users = function(selector) {
 
   results.session.remove = function() {
     if ( ! session) return Promise.resolve(true)
+    session = null
     sessionStorage.removeItem('session')
-    return helper(users, selector, 'DELETE', 'users/:id/session')
+    return helper(users, selector || userDefault, 'DELETE', 'users/:id/session')
     .then(function() {
       //Destroying will stop the rest of the dbs from syncing
       synced.accounts && synced.accounts.cancel();
@@ -282,7 +283,7 @@ function genericSearch(doc) {
 function db(name) {
   local[name] = new PouchDB(name, {auto_compaction:true})
   return local[name].info().then(function(info) {
-    if (true) { //info.update_seq
+    if (info.update_seq == 0) {
       var index
       if (name == 'drugs') {
         index = ['upc', 'ndc9']
@@ -298,7 +299,7 @@ function db(name) {
           //local.drugs.query('drug/ndc', {limit:0}).then(_=> console.log('NDC index built in', Date.now() - start))
         })
         .catch(function(e){
-          console.log(e)
+          console.trace(e)
         })
       }
       else if (name == 'accounts')
@@ -312,7 +313,8 @@ function db(name) {
 
       for (var i of index) {
         //TODO capture promises and return Promise.all()?
-        local[name].createIndex({index: {fields: Array.isArray(i) ? i : [i]}}).then(_ => {
+        local[name].createIndex({index: {fields: Array.isArray(i) ? i : [i]}})
+        .then(_ => {
           console.log('Index built', i, _)
         })
       }
@@ -336,8 +338,9 @@ function find(resource) {
         return docs.rows.map(function(doc) { return doc.doc }).reverse()
       })
     }
-    console.log('finding', resource, JSON.stringify({selector, limit}))
-    return local[resource].find({selector, limit}).then(function(doc) {
+    //console.trace('finding', resource, limit, JSON.stringify({selector, limit}))
+    return local[resource].find({selector, limit})
+    .then(function(doc) {
       console.log('finding', resource, JSON.stringify({selector, limit}), 'in', (performance.now() - start).toFixed(2), 'ms')
       return doc.docs.reverse()
     })
@@ -362,6 +365,19 @@ function put(resource) {
     return local[resource].put(doc)
     .then(function(res) {
       doc._rev = res.rev
+      //Do we need to update the current session data too?
+      if (doc._id == session._id) {
+        var account = session.account
+        session = doc
+        session.account = account
+        saveSession()
+      }
+
+      if (doc._id == session.account._id) {
+        session.account = doc
+        saveSession()
+      }
+
       return doc
     })
   }
