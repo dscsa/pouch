@@ -6,6 +6,9 @@ var resources = ['drugs', 'accounts', 'users', 'shipments', 'transactions']
 var synced    = {}
 var remote    = {}
 var local     = {}
+
+//Because put is async, new session or account _revs are unlikely to be saved in session storage when a page reloads
+//for this reason we have to fetch them again onload just in case the page was reloaded by the user.
 var session   = JSON.parse(sessionStorage.getItem('session') || "null")
 var ajax      = function(opts) {
   return new Promise(function(resolve, reject) {
@@ -270,7 +273,7 @@ resources.forEach(function(r) {
     db(r)
     remote[r] = new PouchDB('http://localhost:3000/'+r)
 
-    if (sessionStorage.getItem('session'))
+    if (session)
       synced[r] = remote[r].sync(local[r], {live:true, retry:true, filter})
 })
 
