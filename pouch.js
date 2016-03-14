@@ -9,7 +9,7 @@ var local     = {}
 
 //Because put is async, new session or account _revs are unlikely to be saved in session storage when a page reloads
 //for this reason we have to fetch them again onload just in case the page was reloaded by the user.
-var session   = JSON.parse(sessionStorage.getItem('session') || "null")
+var _session   = JSON.parse(sessionStorage.getItem('session') || "null")
 var ajax      = function(opts) {
   return new Promise(function(resolve, reject) {
     PouchDB.ajax(opts, function(err, res) {
@@ -28,10 +28,8 @@ var ajax      = function(opts) {
 // post('/users/:id/session', users.session.post)  //Login
 // del('/users/:id/session', users.session.delete) //Logout
 Db.prototype.users = function(selector) {
-
-  var userDefault    = session && {name:session.name}
-  var accountDefault = session && {'account._id':session.account._id}
-
+  var userDefault    = _session && {name:_session.name}
+  var accountDefault = _session && {'account._id':_session.account._id}
   var results = {
     then(a,b) {
       return users(selector || accountDefault).then(a,b)
@@ -41,14 +39,14 @@ Db.prototype.users = function(selector) {
     },
     //WARNING unlike other methods this one is syncronous
     session() {
-      return session
+      return _session
     }
   }
 
   results.session.post = function(password) {
     return helper(users, selector || userDefault, 'POST', 'users/:id/session', password)
     .then(function(sessions) {
-      session = sessions[0]
+      _session  = sessions[0]
       saveSession()
       return Promise.all(resources.map(function(name) {
         //Only sync resources after user login. https://github.com/pouchdb/pouchdb/issues/4266
@@ -65,8 +63,8 @@ Db.prototype.users = function(selector) {
   }
 
   results.session.remove = function() {
-    if ( ! session) return Promise.resolve(true)
-    session = null
+    if ( ! _session) return Promise.resolve(true)
+    _session = null
     sessionStorage.removeItem('session')
     return helper(users, selector || userDefault, 'DELETE', 'users/:id/session')
     .then(function() {
@@ -217,7 +215,7 @@ Db.prototype.drugs = function(selector, limit) {
         var tokens = selector.generic.toLowerCase().replace('.', '\\.').split(/, |[, ]/g)
         var opts   = {startkey:tokens[0], endkey:tokens[0]+'\uffff'}
         return Db.prototype.drugs.query('drug/generic', opts)
-        .then(drugs => {
+        .then(function(drugs) {
           if (tokens[1]) {
             var results = []
             //Use lookaheads to search for each word separately (no order)
@@ -233,7 +231,7 @@ Db.prototype.drugs = function(selector, limit) {
           }
           else {
             //console.log(drugs.length, 'results for', tokens, 'in', Date.now()-start)
-            return drugs.map(drug => {
+            return drugs.map(function(drug) {
               drug.value.generic = genericName(drug.value)
               return drug.value
             })
@@ -243,15 +241,15 @@ Db.prototype.drugs = function(selector, limit) {
       }
 
       if(selector && selector.ndc) {
-        let term = selector.ndc.replace('-', '')
-        let ndc9 = drugs({$and:[{ndc9:{$gte:term}}, {ndc9:{$lt:term+'\uffff'}}]}, 200)
-        let upc  = drugs({$and:[{upc:{$gte:term}}, {upc:{$lt:term+'\uffff'}}]}, 200)
-        return Promise.all([ndc9, upc]).then(results => {
+        var term = selector.ndc.replace('-', '')
+        var ndc9 = drugs({$and:[{ndc9:{$gte:term}}, {ndc9:{$lt:term+'\uffff'}}]}, 200)
+        var upc  = drugs({$and:[{upc:{$gte:term}}, {upc:{$lt:term+'\uffff'}}]}, 200)
+        return Promise.all([ndc9, upc]).then(function(results) {
           //Filter out where upc is not 9 because to avoid duplicates upc search
           return results[0]
-            .filter(drug => drug.upc.length != 9)
+            .filter(function(drug) { return drug.upc.length != 9})
             .concat(results[1])
-            .map(drug => {
+            .map(function(drug) {
               drug.generic = genericName(drug)
               return drug
             })
@@ -273,7 +271,7 @@ resources.forEach(function(r) {
     db(r)
     remote[r] = new PouchDB('http://localhost:3000/'+r)
 
-    if (session)
+    if (_session)
       synced[r] = remote[r].sync(local[r], {live:true, retry:true, filter})
 })
 
@@ -305,8 +303,8 @@ function db(name) {
         }})
         .then(function () {
           console.log('Building drug generic indexes.  This may take a while...')
-          let start = Date.now()
-          local.drugs.query('drug/generic', {limit:0}).then(_=> console.log('Generic index built in', Date.now() - start))
+          var start = Date.now()
+          local.drugs.query('drug/generic', {limit:0}).then(function() { console.log('Generic index built in', Date.now() - start)})
           //local.drugs.query('drug/ndc', {limit:0}).then(_=> console.log('NDC index built in', Date.now() - start))
         })
         .catch(function(e){
@@ -325,7 +323,7 @@ function db(name) {
       for (var i of index) {
         //TODO capture promises and return Promise.all()?
         local[name].createIndex({index: {fields: Array.isArray(i) ? i : [i]}})
-        .then(_ => {
+        .then(function() {
           console.log('Index built', i, _)
         })
       }
@@ -377,15 +375,15 @@ function put(resource) {
     .then(function(res) {
       doc._rev = res.rev
       //Do we need to update the current session data too?
-      if (doc._id == session._id) {
-        var account = session.account
-        session = doc
-        session.account = account
+      if (doc._id == _session._id) {
+        var account = _session.account
+        _session = doc
+        _session.account = account
         saveSession()
       }
 
-      if (doc._id == session.account._id) {
-        session.account = doc
+      if (doc._id == _session.account._id) {
+        _session.account = doc
         saveSession()
       }
 
@@ -432,7 +430,7 @@ function helper(find, selector, method, url, body) {
 }
 
 function genericName(drug) {
-  return drug.generics.map(g => g.name+" "+g.strength).join(', ')+' '+drug.form
+  return drug.generics.map(function(g) { return g.name+" "+g.strength}).join(', ')+' '+drug.form
 }
 
 function methods(resource) {
@@ -445,5 +443,5 @@ function methods(resource) {
 }
 
 function saveSession() {
-  sessionStorage.setItem('session', JSON.stringify(session))
+  sessionStorage.setItem('session', JSON.stringify(_session))
 }
