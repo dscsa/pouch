@@ -6,6 +6,7 @@ var resources = ['drugs', 'accounts', 'users', 'shipments', 'transactions']
 var synced    = {}
 var remote    = {}
 var local     = {}
+var loading   = []
 
 //Because put is async, new session or account _revs are unlikely to be saved in session storage when a page reloads
 //for this reason we have to fetch them again onload just in case the page was reloaded by the user.
@@ -30,6 +31,7 @@ var ajax      = function(opts) {
 Db.prototype.users = function(selector) {
   var userDefault    = _session && {name:_session.name}
   var accountDefault = _session && {'account._id':_session.account._id}
+
   var results = {
     then(a,b) {
       return users(selector || accountDefault).then(a,b)
@@ -43,22 +45,30 @@ Db.prototype.users = function(selector) {
     }
   }
 
+
   results.session.post = function(password) {
+    _session = {loading:resources.slice()}
     return helper(users, selector || userDefault, 'POST', 'users/:id/session', password)
     .then(function(sessions) {
-      _session  = sessions[0]
+      for (var i in sessions[0])
+        _session[i]  = sessions[0][i]
+
       saveSession()
       return Promise.all(resources.map(function(name) {
         //Only sync resources after user login. https://github.com/pouchdb/pouchdb/issues/4266
-        return remote[name].sync(local[name], {retry:true, filter})
+
+        var q = remote[name].sync(local[name], {retry:true, filter})
         .then(function() {
           synced[name] = remote[name].sync(local[name], {live:true, retry:true, filter})
           //Output running list of what is left because syncing takes a while
           //Can't use original index because we are deleting items as we go
-          results.session.loading.splice(results.session.loading.indexOf(name), 1)
+          _session.loading.splice(_session.loading.indexOf(name), 1)
         })
+
+        return name != 'drugs' && q
       }))
-      .then(function(){return sessions[0]})
+      .then(buildIndex)
+      .then(function(){return _session})
     })
   }
 
@@ -75,14 +85,11 @@ Db.prototype.users = function(selector) {
       return Promise.all(['users', 'shipments', 'transactions']
       .map(function(resource) {
         return local[resource].destroy().then(function() {
-            results.session.loading.push(resources)
             return db(resource)
         })
       }))
     })
   }
-
-  results.session.loading = Object.assign([], resources)
 
   return results
 }
@@ -271,9 +278,25 @@ resources.forEach(function(r) {
     db(r)
     remote[r] = new PouchDB('http://localhost:3000/'+r)
 
-    if (_session)
+    if (_session) {
       synced[r] = remote[r].sync(local[r], {live:true, retry:true, filter})
+      if(r == 'drugs') buildIndex()
+    }
 })
+
+function buildIndex() {
+  var start = Date.now()
+  console.log('Ensuring Search Index is Built!')
+
+  //Don't actually return anything because we want session to complete and this to continue in background
+  Promise.all([Db.prototype.drugs({ndc:'DUMMY'}, 0), local.drugs.query('drug/generic', {limit:0})])
+  .then(function() {
+    _session.loading.splice(0)
+    console.log(_session.loading)
+    saveSession()
+    console.log('Search Index Ready', Date.now() - start)
+  })
+}
 
 function filter(doc) {
     return doc._id.indexOf('_design') !== 0
@@ -281,7 +304,9 @@ function filter(doc) {
 
 function genericSearch(doc) {
   for (var i in doc.generics) {
-    //log('generic map',doc.generics[i].name.toLowerCase())
+    if ( ! doc.generics[i].name)
+      log('generic map error for', doc)
+
     emit(doc.generics[i].name.toLowerCase(), doc)
   }
 }
@@ -301,12 +326,6 @@ function db(name) {
         local.drugs.put({_id: '_design/drug', views:{
           generic:{map:genericSearch.toString()}
         }})
-        .then(function () {
-          console.log('Building drug generic indexes.  This may take a while...')
-          var start = Date.now()
-          local.drugs.query('drug/generic', {limit:0}).then(function() { console.log('Generic index built in', Date.now() - start)})
-          //local.drugs.query('drug/ndc', {limit:0}).then(_=> console.log('NDC index built in', Date.now() - start))
-        })
         .catch(function(e){
           console.trace(e)
         })
