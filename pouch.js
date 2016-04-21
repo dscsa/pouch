@@ -331,7 +331,7 @@ function db(name) {
         })
       }
       else if (name == 'accounts')
-        index = [['state', '_id']]
+        index = ['state', ['state', '_id']]
       else if (name == 'users')
         index = ['name', 'account._id'] //account._id
       else if (name == 'shipments')
@@ -380,8 +380,13 @@ function find(resource) {
 }
 
 function post(resource) {
-  return function(body) {
-    return ajax({method:'POST', url:'http://localhost:3000/'+resource, body})
+  return function(doc) {
+    return ajax({method:'POST', url:'http://localhost:3000/'+resource, body:doc})
+    .then(res => {
+      doc._id  = res._id
+      doc._rev = res._rev
+      return res
+    })
   }
 }
 
