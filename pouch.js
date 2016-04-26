@@ -352,7 +352,8 @@ function db(name) {
 }
 
 function find(resource) {
-  return function(selector, limit) {
+  return function(selector, find) {
+    var find  = find || {}
     var start = performance.now()
     var opts = {include_docs:true}
     //drug _id is NDC (number) which starts before _ alphabetically
@@ -367,14 +368,16 @@ function find(resource) {
         return docs.rows.map(function(doc) { return doc.doc }).reverse()
       })
     }
+
+    find.selector = selector
     //console.trace('finding', resource, limit, JSON.stringify({selector, limit}))
-    return local[resource].find({selector, limit})
+    return local[resource].find(find)
     .then(function(doc) {
-      console.log('finding', resource, JSON.stringify({selector, limit}), 'in', (performance.now() - start).toFixed(2), 'ms')
+      console.log('finding', resource, JSON.stringify(find), 'in', (performance.now() - start).toFixed(2), 'ms')
       return doc.docs.reverse()
     })
     .catch(function(_) {
-      console.log('finding', resource, JSON.stringify({selector, limit}), 'in', (performance.now() - start).toFixed(2), 'ms')
+      console.log('finding', resource, JSON.stringify(find), 'in', (performance.now() - start).toFixed(2), 'ms')
       console.log(_)
     })
   }
