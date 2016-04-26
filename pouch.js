@@ -338,7 +338,7 @@ function db(name) {
       else if (name == 'shipments')
         index = ['tracking', 'account.to._id', 'account.from._id'] //to.account._id  //from.account._id
       else if (name == 'transactions')
-        index = ['shipment._id']
+        index = ['shipment._id', ['shipment._id', 'createdAt'], ['shipment._id', 'verifiedAt']]
 
       for (var i of index) {
         //TODO capture promises and return Promise.all()?
