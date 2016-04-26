@@ -30,7 +30,7 @@ var ajax      = function(opts) {
 // del('/users/:id/session', users.session.delete) //Logout
 Db.prototype.users = function(selector) {
   var userDefault    = _session && {name:_session.name}
-  var accountDefault = _session && {'account._id':_session.account._id}
+  var accountDefault = _session && _session.account && {'account._id':_session.account._id}
 
   var results = {
     then(a,b) {
