@@ -252,6 +252,7 @@ Db.prototype.drugs = function(selector, limit) {
         var ndc9 = drugs({$and:[{ndc9:{$gte:term}}, {ndc9:{$lt:term+'\uffff'}}]}, 200)
         var upc  = drugs({$and:[{upc:{$gte:term}}, {upc:{$lt:term+'\uffff'}}]}, 200)
         return Promise.all([ndc9, upc]).then(function(results) {
+          if ( ! results[0]) return
           //Filter out where upc is not 9 because to avoid duplicates upc search
           return results[0]
             .filter(function(drug) { return drug.upc.length != 9})
