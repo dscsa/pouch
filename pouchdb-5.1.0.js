@@ -1,5 +1,5 @@
 //    PouchDB 5.1.0
-//    
+//
 //    (c) 2012-2015 Dale Harvey and the PouchDB team
 //    PouchDB may be freely distributed under the Apache license, version 2.0.
 //    For all details and documentation:
@@ -5847,7 +5847,7 @@ function PouchDB(name, opts, callback) {
       delete resp.then;
       fulfill(resp);
     };
-  
+
     opts = clone(opts);
     var originalName = opts.name || name;
     var backend, error;
@@ -5861,7 +5861,7 @@ function PouchDB(name, opts, callback) {
         }
 
         backend = PouchDB.parseAdapter(originalName, opts);
-        
+
         opts.originalName = originalName;
         opts.name = backend.name;
         if (opts.prefix && backend.adapter !== 'http' &&
@@ -8353,7 +8353,7 @@ Dual licensed under the MIT and GPL licenses.
  *   >>> Math.uuid(15)     // 15 character ID (default base=62)
  *   "VcydxgltxrVZSTV"
  *
- *   // Two arguments - returns ID of the specified length, and radix. 
+ *   // Two arguments - returns ID of the specified length, and radix.
  *   // (Radix must be <= 62)
  *   >>> Math.uuid(8, 2)  // 8 character ID (base=2)
  *   "01001010"
@@ -11961,7 +11961,7 @@ if (typeof Object.create === 'function') {
 }
 
 },{}],98:[function(_dereq_,module,exports){
-(function() { 
+(function() {
 
   var slice   = Array.prototype.slice,
       each    = Array.prototype.forEach;
@@ -11969,7 +11969,7 @@ if (typeof Object.create === 'function') {
   var extend = function(obj) {
     if(typeof obj !== 'object') throw obj + ' is not an object' ;
 
-    var sources = slice.call(arguments, 1); 
+    var sources = slice.call(arguments, 1);
 
     each.call(sources, function(source) {
       if(source) {
@@ -11979,7 +11979,7 @@ if (typeof Object.create === 'function') {
           } else {
             obj[prop] = source[prop];
           }
-        } 
+        }
       }
     });
 
@@ -12322,7 +12322,7 @@ function immediate(task) {
 
 var MIN_MAGNITUDE = -324; // verified by -Number.MIN_VALUE
 var MAGNITUDE_DIGITS = 3; // ditto
-var SEP = ''; // set to '_' for easier debugging 
+var SEP = ''; // set to '_' for easier debugging
 
 var utils = _dereq_(102);
 
