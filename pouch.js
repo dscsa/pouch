@@ -59,11 +59,15 @@ function findRemote(name, path, method, selector, query) {
 
 function findLocal(name, path, method, selector, query) {
   var start = performance.now()
+
   if (selector && selector.generic)
     return drugGeneric(selector.generic)
 
   if (selector && selector.ndc)
     return drugNdc(selector.ndc)
+
+  if (selector && selector.authorized)
+    return accountAuthorized(selector.authorized)
 
   if (name == 'transaction' && query.history)
     return findRemote.apply(this, arguments)
@@ -85,17 +89,25 @@ function bodyLocal(name, path, method, body) {
 
 function updateProperties(method, body) {
   return res => {
-    console.log('pouch.updateProperties', method, body, res, Object.keys(res))
-    if ( ! body) return res
-    if (method != 'post') {
+
+    if (body && method != 'post')
       body._rev = res.rev
-    } else {
-      for (key in res)
-        body[key] = res[key]
-    }
+    else if (body)
+      for (key in res) body[key] = res[key]
 
     return res
   }
+}
+
+function accountAuthorized(accountId) {
+  //TODO can we abstract this into a {$text:term} mango query so that we can support more than just generic
+  var opts   = {startkey:accountId, endkey:accountId+'\uffff'}
+  return local.account.query('account/authorized', opts).then(function(accounts) {
+    return accounts.rows.map(function(row) {
+      return row.value
+    })
+  })
+  .catch(_ => console.log('wow', new Error(_).stack))
 }
 
 function drugGeneric(generic) {
@@ -253,6 +265,10 @@ function mapGenerics() {
   }, function(e){
     console.trace(e)
   })
+function authorizedIndex(doc) {
+  for (var i in doc.authorized) {
+    emit(doc.authorized[i], doc)
+  }
 }
 
 function genericSearch(doc) {
