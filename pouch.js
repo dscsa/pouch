@@ -136,14 +136,18 @@ function drugGeneric(generic) {
 
 function drugNdc(ndc) {
   var term = ndc.replace('-', '')
-  var ndc9 = drugs({ndc9:{$gte:term, $lt:term+'\uffff'}}, {limit:200})
-  var upc  = drugs({ upc:{$gte:term, $lt:term+'\uffff'}}, {limit:200})
-  return Promise.all([ndc9, upc]).then(function(results) {
-    //Filter out where upc is not 9 because to avoid duplicates upc search
-    return results[0].filter(filter).concat(results[1]).map(map)
+
+  var upc  = local.drug.find({selector:{ upc:{$gte:term, $lt:term+'\uffff'}}, limit:200})
+  //To avoid duplicates in upc search, filter out where term length is less than ndc9 labeler (no difference between upc an ndc9 here)
+  var ndc9 = term.length > 5 ? local.drug.find({selector:{ndc9:{$gte:term, $lt:term+'\uffff'}}, limit:200}) : {docs:[]}
+
+  return Promise.all([upc, ndc9]).then(function(results) {
+    return results[0].docs.filter(filter).concat(results[1].docs).map(map)
   })
 
   function filter(drug) {
+    //To avoid duplicates in upc search, filter out where term is less than ndc9 labeler (no difference between upc an ndc9 here)
+    //and where upc is not 9 (no difference between ndc9 and upc when upc is length 9).
     return drug.upc.length != 9
   }
 
