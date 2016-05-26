@@ -173,11 +173,13 @@ function postSession() {
 //Recreate some databases on logout
 function deleteSession() {
   return Promise.all(resources.map(function(name) {
-    console.log('destroying database', name)
-    //keep these two for the next user's session
-    if (name == 'accounts' || name == 'drugs')
-      return synced[name] && synced[name].cancel()
 
+    //keep these two for the next user's session
+    if (name == 'accounts' || name == 'drugs') {
+      console.log('stopping sync of database', name)
+      return synced[name] && synced[name].cancel()
+    }
+    console.log('destroying database', name)
     //Destroying will stop these from syncing as well
     return local[name].destroy().then(function() {
         return createDatabase(name)
@@ -194,7 +196,8 @@ resources.forEach(createDatabase)
 //3. Build local index
 //4. Poly Fill Find
 function createDatabase(r) {
-   local[r] = new PouchDB(r, {auto_compaction:true})
+  console.log('Creating database', r)
+   local[r] = new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
   remote[r] = new PouchDB('http://localhost:3000/'+r)
   buildIndex(r)
   sync(r, true)
@@ -215,7 +218,6 @@ function createDatabase(r) {
     opts.include_docs = true
 
     return local[r].allDocs(opts).then(function(docs) {
-      console.log('allDocs', opts, docs)
       return {docs:docs.rows.map(function(doc) { return doc.doc })}
     })
   }
@@ -230,52 +232,59 @@ function buildIndex(name) {
     if (info.update_seq != 0)
      return
 
-    console.log('Building index for', name)
-    var index
+    console.log('Building indexes for', name)
     if (name == 'drug') {
-      index = ['upc', 'ndc9']
-      mapGenerics()
+      mangoIndex('upc', 'ndc9')
+      customIndex('generic', genericIndex) //Unfortunately mango doesn't currently index arrays so we have to make a traditional map function
     }
-    else if (name == 'account')
-      index = ['state', ['state', '_id']]
-    else if (name == 'user')
-      index = ['email', 'account._id']
-    else if (name == 'shipment')
-      index = ['tracking', 'account.to._id', 'account.from._id']
-    else if (name == 'transaction')
-      index = ['shipment._id', 'createdAt', 'verifiedAt']
 
-    for (var i in index) {
-      var fields = Array.isArray(index[i]) ? index[i] : [index[i]]
-      //TODO capture promises and return Promise.all()?
-      local[name].createIndex({index:{fields:fields}}).then(function() {
-        console.log('Index built', index[i], _)
-      })
+    else if (name == 'account') {
+      mangoIndex('state')
+      customIndex('authorized', authorizedIndex) //Unfortunately mango doesn't currently index arrays so we have to make a traditional map function
     }
+
+    else if (name == 'user')
+      mangoIndex('email', 'account._id')
+
+    else if (name == 'shipment')
+      mangoIndex('tracking', 'account.to._id', 'account.from._id')
+
+    else if (name == 'transaction')
+      mangoIndex('shipment._id', 'createdAt', 'verifiedAt')
   })
+
+  function mangoIndex() {
+    for (var i in arguments) {
+      var fields = Array.isArray(arguments[i]) ? arguments[i] : [arguments[i]]
+      //TODO capture promises and return Promise.all()?
+      console.log('Building mangoIndex', arguments[i])
+      local[name].createIndex({index:{fields:fields}})
+    }
+  }
+
+  function customIndex(index, mapFn) {
+    var start = Date.now()
+
+    var design = {_id: '_design/'+name, views:{}}
+
+    design.views[index] = {map:mapFn.toString()}
+    console.log('Building customIndex', name)
+    local[name].put(design).then(function() {
+      return local[name].query(name+'/'+index, {limit:0})
+    }).then(function() {
+      console.log('customIndex built', name+'/'+index, Date.now() - start)
+    })
+    .catch(_ => console.log('customIndex failed', name+'/'+index))
+  }
 }
 
-function mapGenerics() {
-  var start = Date.now()
-  //Unfortunately mango doesn't index arrays so we have to make a traditional map function
-  local.drug.put({_id: '_design/drug', views:{
-    generic:{map:genericSearch.toString()}
-  }})
-  .then(function() {
-    return local.drug.query('drug/generic', {limit:0})
-  })
-  .then(function() {
-    console.log('Index built', 'drug.generic', Date.now() - start)
-  }, function(e){
-    console.trace(e)
-  })
 function authorizedIndex(doc) {
   for (var i in doc.authorized) {
     emit(doc.authorized[i], doc)
   }
 }
 
-function genericSearch(doc) {
+function genericIndex(doc) {
   for (var i in doc.generics) {
     if ( ! doc.generics[i].name)
       log('generic map error for', doc)
