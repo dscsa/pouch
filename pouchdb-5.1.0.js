@@ -6623,6 +6623,8 @@ function bulkGet(db, opts, callback) {
   function collapseResults() {
     var results = [];
     perDocResults.forEach(function (res) {
+      if ( ! Array.isArray(res.docs))
+        console.log('pouchdb error', res, db, opts)
       res.docs.forEach(function (info) {
         results.push({
           id: res.id,

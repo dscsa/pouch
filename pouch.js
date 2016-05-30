@@ -162,6 +162,7 @@ function postSession() {
   loading.resources = resources.slice()
   loading.syncing   = resources.map(function(name) {
     return sync(name).then(function() {
+      console.log('db', name, 'synced')
       synced[name] = sync(name, true)  //save reference so we can cancel sync on logout
       loading.resources.splice(loading.resources.indexOf(name), 1)
     })
@@ -304,7 +305,8 @@ addMethod('user', 'delete', bodyLocal)
 addMethod('user/session', 'post', bodyRemote, postSession)
 addMethod('user/session', 'delete', bodyRemote, deleteSession)
 addMethod('user/session', 'get', function() {
-   return Promise.resolve(document.cookie && JSON.parse(document.cookie.slice(9)))
+   let AuthUser = document.cookie && document.cookie.match(/AuthUser=([^;]+)/)
+   return Promise.resolve(AuthUser && JSON.parse(AuthUser[1]))
 })
 
 addMethod('account', 'get', findLocal)
