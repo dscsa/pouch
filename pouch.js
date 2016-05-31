@@ -233,7 +233,6 @@ function buildIndex(name) {
     if (info.update_seq != 0)
      return
 
-    console.log('Building indexes for', name)
     if (name == 'drug') {
       mangoIndex('upc', 'ndc9')
       customIndex('generic', genericIndex) //Unfortunately mango doesn't currently index arrays so we have to make a traditional map function
