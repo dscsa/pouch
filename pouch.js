@@ -206,7 +206,7 @@ resources.forEach(createDatabase)
 function createDatabase(r) {
   console.log('Creating database', r)
    local[r] = new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
-  remote[r] = new PouchDB(BASE_URL+r)
+  remote[r] = new PouchDB('http:'+BASE_URL+r)
   buildIndex(r)
   sync(r, true)
 
