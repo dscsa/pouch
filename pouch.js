@@ -1,5 +1,5 @@
 window.Db = function Db() {}
-
+var BASE_URL = '//localhost:3000/'
 //Intention to keep syntax as close to the REST API as possible.
 var resources = ['drug', 'account', 'user', 'shipment', 'transaction']
 var synced    = {}
@@ -54,7 +54,7 @@ function findRemote(name, path, method, selector, query) {
      return key + '=' + JSON.stringify(query[key])
   })
 
-  return ajax({method:'GET', url:'//localhost:3000/'+path+'?'+query.join('&')})
+  return ajax({method:'GET', url:BASE_URL+path+'?'+query.join('&')})
 }
 
 function findLocal(name, path, method, selector, query) {
@@ -199,7 +199,7 @@ resources.forEach(createDatabase)
 function createDatabase(r) {
   console.log('Creating database', r)
    local[r] = new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
-  remote[r] = new PouchDB('http://localhost:3000/'+r)
+  remote[r] = new PouchDB(BASE_URL+r)
   buildIndex(r)
   sync(r, true)
 
