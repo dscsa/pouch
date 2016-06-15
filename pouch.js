@@ -176,7 +176,7 @@ function deleteSession() {
   return Promise.all(resources.map(function(name) {
 
     //keep these two for the next user's session
-    if (name == 'accounts' || name == 'drugs') {
+    if (name == 'account' || name == 'drug') {
       console.log('stopping sync of database', name)
       return synced[name] && synced[name].cancel()
     }
