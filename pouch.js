@@ -80,7 +80,14 @@ function findLocal(name, path, method, selector, query) {
 }
 
 function bodyRemote(name, path, method, body) {
-  return ajax({method:method,url:'//localhost:3000/'+path,body:body}).then(updateProperties(method, body))
+  var timeout = 10000
+  if (method == 'post' && Array.isArray(body)) {
+    path   += '/_bulk_docs'
+    body    = {docs:body}
+    timeout = 20000
+  }
+
+  return ajax({method:method,url:BASE_URL+path,body:body, timeout:timeout}).then(updateProperties(method, body))
 }
 
 function bodyLocal(name, path, method, body) {
