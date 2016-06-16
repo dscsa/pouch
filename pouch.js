@@ -180,17 +180,14 @@ function postSession() {
 //Stop database sync on logout
 //Recreate some databases on logout
 function deleteSession() {
-  if ( ! document.cookie)
-    return Promise.resolve()
-
   return Promise.all(resources.map(function(name) {
 
     //keep these two for the next user's session
     if (name == 'account' || name == 'drug') {
-      console.log('stopping sync of database', name)
-      return synced[name].cancel()
+      //Check if synced because a refresh on logout
+      return synced[name] && synced[name].cancel()
     }
-    console.log('destroying database', name)
+
     //Destroying will stop these from syncing as well
     return local[name].destroy().then(function() {
         delete local[name]
