@@ -29,7 +29,7 @@ function sync(name, live) {
   if ( ! document.cookie)
     return Promise.resolve()
 
-  return remote[name].sync(local[name], {live:live, retry:true, filter:function(doc) {
+  return synced[name] = remote[name].sync(local[name], {live:live, retry:true, filter:function(doc) {
       return doc._id.indexOf('_design') !== 0
   }})
 }
@@ -170,7 +170,7 @@ function postSession() {
   loading.syncing   = resources.map(function(name) {
     return sync(name).then(function() {
       console.log('db', name, 'synced')
-      synced[name] = sync(name, true)  //save reference so we can cancel sync on logout
+      sync(name, true)  //save reference so we can cancel sync on logout
       loading.resources.splice(loading.resources.indexOf(name), 1)
     })
   })
@@ -185,11 +185,14 @@ function deleteSession() {
     //keep these two for the next user's session
     if (name == 'account' || name == 'drug') {
       console.log('stopping sync of database', name)
-      return synced[name] && synced[name].cancel()
+      return synced[name].cancel()
     }
     console.log('destroying database', name)
     //Destroying will stop these from syncing as well
     return local[name].destroy().then(function() {
+        delete local[name]
+        delete remote[name]
+        delete synced[name]
         return createDatabase(name)
     })
   }))
@@ -205,9 +208,10 @@ resources.forEach(createDatabase)
 //4. Poly Fill Find
 function createDatabase(r) {
   console.log('Creating database', r)
-   local[r] = new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
-  remote[r] = new PouchDB('http:'+BASE_URL+r)
+   local[r] = local[r] || new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
+  remote[r] = remote[r] || new PouchDB('http:'+BASE_URL+r)
   buildIndex(r)
+  sync(r, true)
 
   //Polyfill for find to support null selector
   //TODO get rid of this polyfill once mango supports .find() with null selector
