@@ -180,6 +180,9 @@ function postSession() {
 //Stop database sync on logout
 //Recreate some databases on logout
 function deleteSession() {
+  if ( ! document.cookie)
+    return Promise.resolve()
+
   return Promise.all(resources.map(function(name) {
 
     //keep these two for the next user's session
