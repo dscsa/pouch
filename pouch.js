@@ -208,7 +208,6 @@ function createDatabase(r) {
    local[r] = new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
   remote[r] = new PouchDB('http:'+BASE_URL+r)
   buildIndex(r)
-  sync(r, true)
 
   //Polyfill for find to support null selector
   //TODO get rid of this polyfill once mango supports .find() with null selector
