@@ -207,7 +207,6 @@ resources.forEach(createDatabase)
 //3. Build local index
 //4. Poly Fill Find
 function createDatabase(r) {
-  console.log('Creating database', r)
    local[r] = local[r] || new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
   remote[r] = remote[r] || new PouchDB('http:'+BASE_URL+r)
   buildIndex(r)
