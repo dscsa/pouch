@@ -222,7 +222,7 @@ function createDatabase(r) {
     if (opts.selector)
       return find(opts)
 
-    r == 'drugs' //drug _id is NDC (number) which starts before _ alphabetically
+    r == 'drug' //drug _id is NDC (number) which starts before _ alphabetically
       ? opts.endkey   = '_design'
       : opts.startkey = '_design\uffff'
 
