@@ -142,6 +142,9 @@ function drugGeneric(generic) {
 }
 
 function drugNdc(ndc) {
+  if (ndc.length == 12 && ndc[0] == '3') //bardcode '3'+10 digit upc+checksum
+    ndc = ndc.slice(1, 9)
+
   var term = ndc.replace('-', '')
 
   var upc  = local.drug.find({selector:{ upc:{$gte:term, $lt:term+'\uffff'}}, limit:200})
