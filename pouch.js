@@ -60,6 +60,12 @@ function findRemote(name, path, method, selector, query) {
 function findLocal(name, path, method, selector, query) {
   var start = performance.now()
 
+  if (selector && typeof selector._id == 'string')
+    return local[name].get(selector._id).then(function(doc) {
+      console.log('found', doc, name+'s with get()', JSON.stringify(selector), 'in', (performance.now() - start).toFixed(2), 'ms')
+      return [doc]
+    })
+
   if (selector && selector.generic)
     return drugGeneric(selector.generic)
 
