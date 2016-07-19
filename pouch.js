@@ -14,7 +14,6 @@ var loading   = {}
 //this.db.users.delete({})
 //this.db.users.session.post({})
 //this.db.users.email.post({})
-
 function ajax(opts) {
   opts.json = true
   return new Promise(function(resolve, reject) {

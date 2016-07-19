@@ -31,7 +31,6 @@ var parseDoc = _dereq_(42);
 /*
  * A generic pouch adapter
  */
-
 function compare(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
 }
