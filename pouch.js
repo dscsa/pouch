@@ -61,7 +61,7 @@ function findLocal(name, path, method, selector, query) {
 
   if (selector && typeof selector._id == 'string')
     return local[name].get(selector._id).then(function(doc) {
-      console.log('found', doc, name+'s with get()', JSON.stringify(selector), 'in', (performance.now() - start).toFixed(2), 'ms')
+      console.log('found', name, 'with _id', selector._id, 'in', (performance.now() - start).toFixed(2), 'ms')
       return [doc]
     })
 
