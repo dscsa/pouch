@@ -1,5 +1,5 @@
 window.Db = function Db() {}
-var BASE_URL = '//localhost:3000/'
+var BASE_URL = '//localhost:80/'
 //Intention to keep syntax as close to the REST API as possible.
 var resources = ['drug', 'account', 'user', 'shipment', 'transaction']
 var synced    = {}
