@@ -1,5 +1,5 @@
 window.Db = function Db() {}
-var BASE_URL = '//:'+window.location.hostname+'/'
+var BASE_URL = '//'+window.location.hostname+'/'
 //Intention to keep syntax as close to the REST API as possible.
 var resources = ['drug', 'account', 'user', 'shipment', 'transaction']
 var synced    = {}
@@ -215,7 +215,7 @@ resources.forEach(createDatabase)
 //3. Build local index
 //4. Poly Fill Find
 function createDatabase(r) {
-   local[r] = local[r] || new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
+   local[r] =  local[r] || new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
   remote[r] = remote[r] || new PouchDB('http:'+BASE_URL+r)
   buildIndex(r)
   sync(r, true)
