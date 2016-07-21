@@ -25,7 +25,7 @@ function ajax(opts) {
 }
 
 function sync(name, live) {
-  if ( ! ~ document.cookie.indexOf('AuthSession') || ! ~ document.cookie.indexOf('AuthUser'))
+  if ( ! ~ document.cookie.indexOf('AuthUser'))
     return Promise.resolve()
 
   return synced[name] = remote[name].sync(local[name], {live:live, retry:true, filter:function(doc) {
