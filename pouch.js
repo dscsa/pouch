@@ -193,11 +193,13 @@ function deleteSession() {
     //keep these two for the next user's session
     if (name == 'account' || name == 'drug') {
       //Check if synced because a refresh on logout
+      console.log(name, synced[name] ? 'canceled' : 'could not be canceled')
       return synced[name] && synced[name].cancel()
     }
 
     //Destroying will stop these from syncing as well
     return local[name].destroy().then(function() {
+        console.log(name, 'destroyed')
         delete local[name]
         delete remote[name]
         delete synced[name]
@@ -215,6 +217,7 @@ resources.forEach(createDatabase)
 //3. Build local index
 //4. Poly Fill Find
 function createDatabase(r) {
+  console.log(r, remote[r] ? 'already exists' : 'is being made')
    local[r] =  local[r] || new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
   remote[r] = remote[r] || new PouchDB('http:'+BASE_URL+r)
   buildIndex(r)
