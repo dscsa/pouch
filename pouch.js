@@ -147,10 +147,30 @@ function drugGeneric(generic) {
 }
 
 function drugNdc(ndc) {
-  if (ndc.length == 12 && ndc[0] == '3') //bardcode '3'+10 digit upc+checksum
-    ndc = ndc.slice(1, 9)
+  var term = ndc.replace(/-/g, '')
 
-  var term = ndc.replace('-', '')
+  //This is a UPC barcode ('3'+10 digit upc+checksum).
+  if (term.length == 12 && term[0] == '3')
+    term = term.slice(1, -1)
+
+  //If 9 digits or more, user is likely including a 1 or 2 digit package code with an exact NDC,
+  if (term.length > 8) {
+
+    return local.drug.find({selector:{ndc9:term.slice(0, 9)}, limit:1}).then(drugs => {
+      return drugs.docs.length ? drugs : local.drug.find({selector:{upc:term.slice(0, 8)}, limit:1})
+    }).then(drugs => {
+      //If found, include the package code in the result
+      return drugs.docs.map(drug => {
+        var ndc9  = '^'+drug.ndc9+'(\\d{1,2})$'
+        var upc   = '^'+drug.upc+'(\\d{1,2})$'
+        var match = term.match(RegExp(ndc9+'|'+upc))
+        if (match)
+          drug.pkg = match[1] || match[2] || match[3] || ''
+
+        return drug
+      })
+    })
+  }
 
   var upc  = local.drug.find({selector:{ upc:{$gte:term, $lt:term+'\uffff'}}, limit:200})
   //To avoid duplicates in upc search, filter out where term length is less than ndc9 labeler (no difference between upc an ndc9 here)
