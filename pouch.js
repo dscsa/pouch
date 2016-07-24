@@ -88,8 +88,8 @@ function bodyRemote(name, path, method, body) {
   var timeout = 10000
   if (method == 'post' && Array.isArray(body)) {
     path   += '/_bulk_docs'
+    timeout = 1000 * body.length //one second per record
     body    = {docs:body}
-    timeout = 20000
   }
 
   return ajax({method:method,url:BASE_URL+path,body:body, timeout:timeout}).then(updateProperties(method, body))
