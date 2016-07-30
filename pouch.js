@@ -58,7 +58,6 @@ function findRemote(name, path, method, selector, query) {
 
 function findLocal(name, path, method, selector, query) {
   var start = performance.now()
-
   if (selector && typeof selector._id == 'string' && ! query)
     return local[name].get(selector._id).then(function(doc) {
       console.log('found', name, 'with _id', selector._id, 'in', (performance.now() - start).toFixed(2), 'ms')
@@ -66,10 +65,10 @@ function findLocal(name, path, method, selector, query) {
     })
 
   if (selector && selector.generic)
-    return drugGeneric(selector.generic)
+    return name == 'drug' ? drugGeneric(selector.generic) : inventoryGeneric(selector.generic)
 
   if (selector && selector.ndc)
-    return drugNdc(selector.ndc)
+    return name == 'drug' ?  drugNdc(selector.ndc) : drugGeneric(selector.ndc)
 
   if (selector && selector.authorized)
     return accountAuthorized(selector.authorized)
@@ -119,7 +118,7 @@ function accountAuthorized(accountId) {
       return row.value
     })
   })
-  .catch(_ => console.log('wow', new Error(_).stack))
+  .catch(_ => console.log('accountAuthorized Error', new Error(_).stack))
 }
 
 function drugGeneric(generic) {
@@ -127,7 +126,6 @@ function drugGeneric(generic) {
   var tokens = generic.toLowerCase().replace('.', '\\.').split(/, |[, ]/g)
   var opts   = {startkey:tokens[0], endkey:tokens[0]+'\uffff'}
   return local.drug.query('drug/generic', opts).then(function(drugs) {
-
     //console.log(drugs.length, 'results for', tokens, 'in', Date.now()-start)
     var results = drugs.rows.map(function(drug) {
       drug.value.generic = genericName(drug.value)
@@ -142,6 +140,28 @@ function drugGeneric(generic) {
 
     return results.filter(function(drug) {
       return regex.test(drug.generic)
+    })
+  })
+}
+
+function inventoryGeneric(generic) {
+  //TODO can we abstract this into a {$text:term} mango query so that we can support more than just generic
+  var tokens = generic.toLowerCase().replace('.', '\\.').split(/, |[, ]/g)
+  var opts   = {startkey:tokens[0], endkey:tokens[0]+'\uffff'}
+  return local.transaction.query('transaction/inventoryGeneric', opts).then(function(transactions) {
+    var results = transactions.rows.map(function(transaction) {
+      transaction.value.drug.generic = genericName(transaction.value.drug)
+      return transaction.value
+    })
+
+    if ( ! tokens[1])
+      return results
+
+    //Use lookaheads to search for each word separately (no order)
+    var regex = RegExp('(?=.*'+tokens.join(')(?=.*')+')', 'i')
+
+    return results.filter(function(transaction) {
+      return regex.test(transaction.drug.generic)
     })
   })
 }
@@ -272,7 +292,7 @@ function buildIndex(name) {
 
     if (name == 'drug') {
       mangoIndex('upc', 'ndc9')
-      customIndex('generic', genericIndex) //Unfortunately mango doesn't currently index arrays so we have to make a traditional map function
+      customIndex('generic', drugGenericIndex) //Unfortunately mango doesn't currently index arrays so we have to make a traditional map function
     }
 
     else if (name == 'account') {
@@ -286,16 +306,29 @@ function buildIndex(name) {
     else if (name == 'shipment')
       mangoIndex('tracking', 'account.to._id', 'account.from._id')
 
-    else if (name == 'transaction')
+    else if (name == 'transaction') {
       mangoIndex('shipment._id', 'createdAt', 'verifiedAt')
+      customIndex('inventoryGeneric', inventoryGenericIndex)
+    }
   })
 
   function mangoIndex() {
+    var start  = Date.now()
     for (var i in arguments) {
-      var fields = Array.isArray(arguments[i]) ? arguments[i] : [arguments[i]]
+      freeze(arguments[i])
+    }
+
+    function freeze(field) {
+      console.log('Building mangoIndex', field)
       //TODO capture promises and return Promise.all()?
-      console.log('Building mangoIndex', arguments[i])
-      local[name].createIndex({index:{fields:fields}})
+      local[name].createIndex({index:{fields:Array.isArray(field) ? field : [field]}})
+      .then(function(_) {
+        return local[name].find({limit:1})
+      })
+      .then(function(_) {
+        console.log('mangoIndex built', field, Date.now() - start, _)
+      })
+      .catch(_ => console.log('mangoIndex failed', field, _))
     }
   }
 
@@ -307,11 +340,11 @@ function buildIndex(name) {
     design.views[index] = {map:mapFn.toString()}
     console.log('Building customIndex', name)
     local[name].put(design).then(function() {
-      return local[name].query(name+'/'+index, {limit:0})
-    }).then(function() {
-      console.log('customIndex built', name+'/'+index, Date.now() - start)
+      return local[name].query(name+'/'+index, {limit:1})
+    }).then(function(results) {
+      console.log('customIndex built', name+'/'+index, Date.now() - start, results)
     })
-    .catch(_ => console.log('customIndex failed', name+'/'+index))
+    .catch(_ => console.log('customIndex failed', name+'/'+index, _))
   }
 }
 
@@ -321,12 +354,22 @@ function authorizedIndex(doc) {
   }
 }
 
-function genericIndex(doc) {
+function drugGenericIndex(doc) {
   for (var i in doc.generics) {
     if ( ! doc.generics[i].name)
-      log('generic map error for', doc)
+      log('drug generic map error for', doc)
 
     emit(doc.generics[i].name.toLowerCase(), doc)
+  }
+}
+
+function inventoryGenericIndex(doc) {
+  for (var i in doc.drug.generics) {
+    if ( ! doc.drug.generics[i].name)
+      log('transaction generic map error for', doc)
+
+    if (doc.shipment._id.split('.').length == 1) //inventory only
+      emit(doc.drug.generics[i].name.toLowerCase(), doc)
   }
 }
 
