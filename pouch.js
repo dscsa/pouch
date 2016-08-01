@@ -112,10 +112,10 @@ function updateProperties(method, body) {
 
 function accountAuthorized(accountId) {
   //TODO can we abstract this into a {$text:term} mango query so that we can support more than just generic
-  var opts   = {startkey:accountId, endkey:accountId+'\uffff'}
+  var opts   = {startkey:accountId, endkey:accountId+'\uffff', include_docs:true}
   return local.account.query('account/authorized', opts).then(function(accounts) {
     return accounts.rows.map(function(row) {
-      return row.value
+      return row.doc
     })
   })
   .catch(_ => console.log('accountAuthorized Error', new Error(_).stack))
@@ -124,12 +124,12 @@ function accountAuthorized(accountId) {
 function drugGeneric(generic) {
   //TODO can we abstract this into a {$text:term} mango query so that we can support more than just generic
   var tokens = generic.toLowerCase().replace('.', '\\.').split(/, |[, ]/g)
-  var opts   = {startkey:tokens[0], endkey:tokens[0]+'\uffff'}
+  var opts   = {startkey:tokens[0], endkey:tokens[0]+'\uffff', include_docs:true}
   return local.drug.query('drug/generic', opts).then(function(drugs) {
     //console.log(drugs.length, 'results for', tokens, 'in', Date.now()-start)
     var results = drugs.rows.map(function(drug) {
-      drug.value.generic = genericName(drug.value)
-      return drug.value
+      drug.doc.generic = genericName(drug.doc)
+      return drug.doc
     })
 
     if ( ! tokens[1])
@@ -147,11 +147,11 @@ function drugGeneric(generic) {
 function inventoryGeneric(generic) {
   //TODO can we abstract this into a {$text:term} mango query so that we can support more than just generic
   var tokens = generic.toLowerCase().replace('.', '\\.').split(/, |[, ]/g)
-  var opts   = {startkey:tokens[0], endkey:tokens[0]+'\uffff'}
+  var opts   = {startkey:tokens[0], endkey:tokens[0]+'\uffff', include_docs:true}
   return local.transaction.query('transaction/inventoryGeneric', opts).then(function(transactions) {
     var results = transactions.rows.map(function(transaction) {
-      transaction.value.drug.generic = genericName(transaction.value.drug)
-      return transaction.value
+      transaction.doc.drug.generic = genericName(transaction.doc.drug)
+      return transaction.doc
     })
 
     if ( ! tokens[1])
@@ -350,7 +350,7 @@ function buildIndex(name) {
 
 function authorizedIndex(doc) {
   for (var i in doc.authorized) {
-    emit(doc.authorized[i], doc)
+    emit(doc.authorized[i])
   }
 }
 
@@ -359,7 +359,7 @@ function drugGenericIndex(doc) {
     if ( ! doc.generics[i].name)
       log('drug generic map error for', doc)
 
-    emit(doc.generics[i].name.toLowerCase(), doc)
+    emit(doc.generics[i].name.toLowerCase())
   }
 }
 
@@ -369,7 +369,7 @@ function inventoryGenericIndex(doc) {
       log('transaction generic map error for', doc)
 
     if (doc.shipment._id.split('.').length == 1) //inventory only
-      emit(doc.drug.generics[i].name.toLowerCase(), doc)
+      emit(doc.drug.generics[i].name.toLowerCase())
   }
 }
 
