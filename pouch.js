@@ -220,6 +220,7 @@ function postSession() {
       console.log('db', name, 'synced')
       sync(name, true)  //save reference so we can cancel sync on logout
       loading.resources.splice(loading.resources.indexOf(name), 1)
+      buildIndex(name)
     })
   })
   return loading
@@ -286,10 +287,6 @@ function createDatabase(r) {
 //PouchDB.debug.disable('pouchdb:find')
 function buildIndex(name) {
   return local[name].info().then(function(info) {
-
-    if (info.update_seq != 0)
-     return
-
     if (name == 'drug') {
       mangoIndex('upc', 'ndc9')
       customIndex('generic', drugGenericIndex) //Unfortunately mango doesn't currently index arrays so we have to make a traditional map function
@@ -310,42 +307,38 @@ function buildIndex(name) {
       mangoIndex('shipment._id', 'createdAt', 'verifiedAt')
       customIndex('inventoryGeneric', inventoryGenericIndex)
     }
+
+    function mangoIndex() {
+      [].slice.call(arguments).forEach(function(field) { //need to freeze field which doesn't happen with a for..in loop
+        var field = Array.isArray(field) ? field : [field]
+        if (info.update_seq == 0) {
+          return local[name].createIndex({index:{fields:field}}).catch(function() {
+            console.log('Preparing mango index', name+'/'+field)
+          })
+        }
+
+        var start  = Date.now()
+        local[name].find({limit:0}).then(function() {
+          console.log('Mango index', name+'/'+field, 'built in', Date.now() - start)
+        })
+      })
+    }
+
+    function customIndex(index, mapFn) {
+      if (info.update_seq == 0) {
+        var design = {_id: '_design/'+name, views:{}}
+        design.views[index] = {map:mapFn.toString()}
+        return local[name].put(design).catch(function() {
+          console.log('Preparing custom index', name+'/'+index)
+        })
+      }
+
+      var start = Date.now()
+      return local[name].query(name+'/'+index, {limit:0}).then(function() {
+        console.log('Custom index', name+'/'+index, 'built in', Date.now() - start)
+      })
+    }
   })
-
-  function mangoIndex() {
-    var start  = Date.now()
-    for (var i in arguments) {
-      freeze(arguments[i])
-    }
-
-    function freeze(field) {
-      console.log('Building mangoIndex', field)
-      //TODO capture promises and return Promise.all()?
-      local[name].createIndex({index:{fields:Array.isArray(field) ? field : [field]}})
-      .then(function(_) {
-        return local[name].find({limit:1})
-      })
-      .then(function(_) {
-        console.log('mangoIndex built', field, Date.now() - start, _)
-      })
-      .catch(_ => console.log('mangoIndex failed', field, _))
-    }
-  }
-
-  function customIndex(index, mapFn) {
-    var start = Date.now()
-
-    var design = {_id: '_design/'+name, views:{}}
-
-    design.views[index] = {map:mapFn.toString()}
-    console.log('Building customIndex', name)
-    local[name].put(design).then(function() {
-      return local[name].query(name+'/'+index, {limit:1})
-    }).then(function(results) {
-      console.log('customIndex built', name+'/'+index, Date.now() - start, results)
-    })
-    .catch(_ => console.log('customIndex failed', name+'/'+index, _))
-  }
 }
 
 function authorizedIndex(doc) {
