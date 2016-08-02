@@ -169,27 +169,22 @@ function inventoryGeneric(generic) {
 function drugNdc(ndc) {
   var term = ndc.replace(/-/g, '')
 
-  //This is a UPC barcode ('3'+10 digit upc+checksum).
-  if (term.length == 12 && term[0] == '3')
-    term = term.slice(1, -1)
-
   //If 9 digits or more, user is likely including a 1 or 2 digit package code with an exact NDC,
   if (term.length > 8) {
 
+    //This is a UPC barcode ('3'+10 digit upc+checksum).
+    if (term.length == 12 && term[0] == '3')
+      return local.drug.find({selector:{upc:term.slice(1, 10)}, limit:1}).then(drugs => {
+        return drugs.docs.length ? drugs : local.drug.find({selector:{upc:term.slice(1, 9)}, limit:1})
+      }).then(pkgCode)
+
+    //Full 11 digit NDC
+    if (term.length == 11)
+      return local.drug.find({selector:{ndc9:term.slice(0, 9)}, limit:1}).then(pkgCode)
+
     return local.drug.find({selector:{ndc9:term.slice(0, 9)}, limit:1}).then(drugs => {
       return drugs.docs.length ? drugs : local.drug.find({selector:{upc:term.slice(0, 8)}, limit:1})
-    }).then(drugs => {
-      //If found, include the package code in the result
-      return drugs.docs.map(drug => {
-        var ndc9  = '^'+drug.ndc9+'(\\d{1,2})$'
-        var upc   = '^'+drug.upc+'(\\d{1,2})$'
-        var match = term.match(RegExp(ndc9+'|'+upc))
-        if (match)
-          drug.pkg = match[1] || match[2] || match[3] || ''
-
-        return drug
-      })
-    })
+    }).then(pkgCode)
   }
 
   var upc  = local.drug.find({selector:{ upc:{$gte:term, $lt:term+'\uffff'}}, limit:200})
@@ -199,6 +194,19 @@ function drugNdc(ndc) {
   return Promise.all([upc, ndc9]).then(function(results) {
     return results[0].docs.filter(filter).concat(results[1].docs).map(map)
   })
+
+  function pkgCode(drugs) {
+    //If found, include the package code in the result
+    return drugs.docs.map(drug => {
+      var ndc9  = '^'+drug.ndc9+'(\\d{1,2})$'
+      var upc   = '^'+drug.upc+'(\\d{1,2})$'
+      var match = term.match(RegExp(ndc9+'|'+upc))
+      if (match)
+        drug.pkg = match[1] || match[2] || match[3] || ''
+
+      return drug
+    })
+  }
 
   function filter(drug) {
     //To avoid duplicates in upc search, filter out where term is less than ndc9 labeler (no difference between upc an ndc9 here)
