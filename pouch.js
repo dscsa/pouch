@@ -128,7 +128,6 @@ function drugGeneric(generic) {
   return local.drug.query('drug/generic', opts).then(function(drugs) {
     //console.log(drugs.length, 'results for', tokens, 'in', Date.now()-start)
     var results = drugs.rows.map(function(drug) {
-      drug.doc.generic = genericName(drug.doc)
       return drug.doc
     })
 
@@ -150,7 +149,6 @@ function inventoryGeneric(generic) {
   var opts   = {startkey:tokens[0], endkey:tokens[0]+'\uffff', include_docs:true}
   return local.transaction.query('transaction/inventoryGeneric', opts).then(function(transactions) {
     var results = transactions.rows.map(function(transaction) {
-      transaction.doc.drug.generic = genericName(transaction.doc.drug)
       return transaction.doc
     })
 
@@ -372,10 +370,6 @@ function inventoryGenericIndex(doc) {
     if (doc.shipment._id.split('.').length == 1) //inventory only
       emit(doc.drug.generics[i].name.toLowerCase())
   }
-}
-
-function genericName(drug) {
-  return drug.generics.map(function(g) { return g.name+" "+g.strength}).join(', ')+' '+drug.form
 }
 
 addMethod('user', 'get', findLocal)
