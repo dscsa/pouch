@@ -167,31 +167,32 @@ function inventoryGeneric(generic) {
 function drugNdc(ndc) {
   var term = ndc.replace(/-/g, '')
 
-  //If 9 digits or more, user is likely including a 1 or 2 digit package code with an exact NDC,
-  if (term.length > 8) {
+  //This is a UPC barcode ('3'+10 digit upc+checksum).
+  if (term.length == 12 && term[0] == '3')
+    term = term.slice(1, -1)
 
-    //This is a UPC barcode ('3'+10 digit upc+checksum).
-    if (term.length == 12 && term[0] == '3')
-      return local.drug.find({selector:{upc:term.slice(1, 10)}, limit:1}).then(drugs => {
-        return drugs.docs.length ? drugs : local.drug.find({selector:{upc:term.slice(1, 9)}, limit:1})
-      }).then(pkgCode)
+  //Full 11 digit NDC
+  if (term.length == 11)
+    return local.drug.find({selector:{ndc9:term.slice(0, 9)}, limit:1}).then(pkgCode)
 
-    //Full 11 digit NDC
-    if (term.length == 11)
-      return local.drug.find({selector:{ndc9:term.slice(0, 9)}, limit:1}).then(pkgCode)
+  //Full 10 digit UPC
+  if (term.length == 10)
+    return local.drug.find({selector:{upc:term.slice(0, 9)}, limit:1}).then(drugs => {
+      return drugs.docs.length ? drugs : local.drug.find({selector:{upc:term.slice(0, 8)}, limit:1})
+    }).then(pkgCode)
 
+  //If 9 digit or >12 digit, user is likely including a 1 or 2 digit package code with an exact NDC,
+  if (term.length > 8)
     return local.drug.find({selector:{ndc9:term.slice(0, 9)}, limit:1}).then(drugs => {
       return drugs.docs.length ? drugs : local.drug.find({selector:{upc:term.slice(0, 8)}, limit:1})
     }).then(pkgCode)
-  }
 
+  //8 or less digits means we have a inexact search which could be UPC or NDC
   var upc  = local.drug.find({selector:{ upc:{$gte:term, $lt:term+'\uffff'}}, limit:200})
   //To avoid duplicates in upc search, filter out where term length is less than ndc9 labeler (no difference between upc an ndc9 here)
   var ndc9 = term.length > 5 ? local.drug.find({selector:{ndc9:{$gte:term, $lt:term+'\uffff'}}, limit:200}) : {docs:[]}
 
-  return Promise.all([upc, ndc9]).then(function(results) {
-    return results[0].docs.filter(filter).concat(results[1].docs).map(map)
-  })
+  return Promise.all([upc, ndc9]).then(deduplicate)
 
   function pkgCode(drugs) {
     //If found, include the package code in the result
@@ -206,15 +207,10 @@ function drugNdc(ndc) {
     })
   }
 
-  function filter(drug) {
-    //To avoid duplicates in upc search, filter out where term is less than ndc9 labeler (no difference between upc an ndc9 here)
-    //and where upc is not 9 (no difference between ndc9 and upc when upc is length 9).
-    return drug.upc.length != 9
-  }
-
-  function map(drug) {
-    drug.generic = genericName(drug)
-    return drug
+  //To avoid duplicates in upc search, filter out where term is less than ndc9 labeler (no difference between upc an ndc9 here)
+  //and where upc is not 9 (no difference between ndc9 and upc when upc is length 9).
+  function deduplicate(results) {
+    return results[0].docs.filter(function(drug) { return drug.upc.length != 9 }).concat(results[1].docs)
   }
 }
 
