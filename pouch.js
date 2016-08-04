@@ -138,6 +138,7 @@ function drugGeneric(generic) {
     var regex = RegExp('(?=.*'+tokens.join(')(?=.*')+')', 'i')
 
     return results.filter(function(drug) {
+      drug.generic = genericName(drug)
       return regex.test(drug.generic)
     })
   })
@@ -366,6 +367,10 @@ function inventoryGenericIndex(doc) {
     if (doc.shipment._id.split('.').length == 1) //inventory only
       emit(doc.drug.generics[i].name.toLowerCase())
   }
+}
+
+function genericName(drug) {
+  return drug.generics.map(generic => generic.name+" "+generic.strength).join(', ')+' '+drug.form
 }
 
 addMethod('user', 'get', findLocal)
