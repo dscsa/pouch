@@ -42,25 +42,25 @@ function addMethod(path, method, handler, then) {
     obj = obj[key] = obj[key] || {}
   }
 
-  obj[method] = function(selector, query) {
-    return handler(arr[0], path, method, selector, query || {}).then(then)
+  obj[method] = function(body, query) {
+    return handler(arr[0], path, method, body, query || {}).then(then)
   }
 }
 
-function drugUpdate(name, path, method, body) {
-  return update(name, path, method, body, removeGeneric(body, body => body))
+function drugUpdate(name, path, method, body, query) {
+  return update(name, path, method, body, query, removeGeneric(body, body => body))
 }
 
-function drugUpdateRemote(name, path, method, body) {
-  return updateRemote(name, path, method, body, removeGeneric(body, body => body))
+function drugUpdateRemote(name, path, method, body, query) {
+  return updateRemote(name, path, method, body, query, removeGeneric(body, body => body))
 }
 
-function transactionUpdate(name, path, method, body) {
-  return update(name, path, method, body, removeGeneric(body, body => body.drug))
+function transactionUpdate(name, path, method, body, query) {
+  return update(name, path, method, body, query, removeGeneric(body, body => body.drug))
 }
 
-function transactionUpdateRemote(name, path, method, body) {
-  return updateRemote(name, path, method, body, removeGeneric(body, body => body.drug))
+function transactionUpdateRemote(name, path, method, body, query) {
+  return updateRemote(name, path, method, body, query, removeGeneric(body, body => body.drug))
 }
 
 function removeGeneric(body, getDrug) {
@@ -70,17 +70,18 @@ function removeGeneric(body, getDrug) {
   return copy
 }
 
-function update(name, path, method, body, copy) {
+function update(name, path, method, body, query, copy) {
   return local[name][method == 'delete' ? 'remove' : method](copy || body).then(res => updateProps(method, res, body))
 }
 
-function updateRemote(name, path, method, body, copy) {
+function updateRemote(name, path, method, body, query, copy) {
   var timeout = 10000
   if (method == 'post' && Array.isArray(body)) {
     path   += '/_bulk_docs'
     timeout = 1000 * body.length //one second per record
     body    = {docs:body}
   }
+
   return ajax({method,url:BASE_URL+path,body:copy || body, timeout}).then(res => updateProps(method, res, body))
 }
 
