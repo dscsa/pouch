@@ -86,10 +86,12 @@ function updateRemote(name, path, method, body, query, copy) {
 }
 
 //Deep (recursive) merge that keeps references intact to be compatiable with removeGeneric
+//Note delete doesn't have a body
 function updateProps(method, res, body) {
-  if (method != 'post')
-    body._rev = res.rev
-  else
+
+  if (body && method != 'post')
+    body._rev = res.rev || res._rev
+  else if (body)
     for (let key in res) {
       typeof res[key] == 'object' && typeof body[key] == 'object'
         ? updateProps(method, res[key], body[key])
@@ -276,7 +278,6 @@ function postSession() {
 //Recreate some databases on logout
 function deleteSession() {
   return Promise.all(resources.map(function(name) {
-
     //keep these two for the next user's session
     if (name == 'account' || name == 'drug') {
       //Check if synced because a refresh on logout
@@ -285,10 +286,10 @@ function deleteSession() {
 
     //Destroying will stop these from syncing as well
     return local[name].destroy().then(function() {
-        delete local[name]
-        delete remote[name]
-        delete synced[name]
-        return createDatabase(name)
+      delete local[name]
+      delete remote[name]
+      delete synced[name]
+      return createDatabase(name)
     })
   }))
 }
