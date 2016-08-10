@@ -256,7 +256,7 @@ function findRemote(name, path, method, selector, query) {
      return key + '=' + JSON.stringify(query[key])
   })
 
-  return ajax({method:'GET', url:BASE_URL+path+'?'+query.join('&')})
+  return ajax({method:'GET', url:BASE_URL+path+'?'+query.join('&')}).then(docs => docs.reverse())
 }
 
 function getSession() {
@@ -452,8 +452,8 @@ addMethod('shipment', 'delete', update)
 
 addMethod('transaction', 'get', transactionFind)
 addMethod('transaction', 'post', transactionUpdateRemote)
-addMethod('transaction', 'put', transactionUpdate)
-addMethod('transaction', 'delete', transactionUpdate)
+addMethod('transaction', 'put', transactionUpdateRemote)
+addMethod('transaction', 'delete', transactionUpdateRemote)
 addMethod('transaction/verified', 'post', updateRemote)
 addMethod('transaction/verified', 'delete', updateRemote)
 
