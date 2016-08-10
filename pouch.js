@@ -114,7 +114,7 @@ function drugGenericFind(generic) {
   return genericFind(generic, 'drug/generic', drug => drug)
 }
 
-function transactionGenericFind(generic) {
+function inventoryGenericFind(generic) {
   return genericFind(generic, 'transaction/inventoryGeneric', transaction => transaction.drug)
 }
 
@@ -215,17 +215,16 @@ function drugFind(name, path, method, selector, query) {
 }
 
 function transactionFind(name, path, method, selector, query) {
-  if (selector && selector.generic)
-    return transactionGenericFind(selector.generic)
+  return getSession().then(session => {
+    if (selector && selector['shipment._id'] == session.account._id && selector.generic)
+      return inventoryGenericFind(selector.generic)
 
-  if (query.history)
-    return findRemote.apply(this, arguments)
+    return findRemote.apply(this, arguments).then(function(transactions) {
+      for (let transaction of transactions)
+        addGenericName(transaction.drug)
 
-  return find.apply(this, arguments).then(function(transactions) {
-    for (let transaction of transactions)
-      addGenericName(transaction.drug)
-
-    return transactions
+      return transactions
+    })
   })
 }
 
@@ -258,6 +257,11 @@ function findRemote(name, path, method, selector, query) {
   })
 
   return ajax({method:'GET', url:BASE_URL+path+'?'+query.join('&')})
+}
+
+function getSession() {
+   let AuthUser = document.cookie && document.cookie.match(/AuthUser=([^;]+)/)
+   return Promise.resolve(AuthUser && JSON.parse(AuthUser[1]))
 }
 
 //Only sync resources after user login. https://github.com/pouchdb/pouchdb/issues/4266
@@ -422,10 +426,7 @@ addMethod('user', 'put', update)
 addMethod('user', 'delete', update)
 addMethod('user/session', 'post', updateRemote, postSession)
 addMethod('user/session', 'delete', updateRemote, deleteSession)
-addMethod('user/session', 'get', function() {
-   let AuthUser = document.cookie && document.cookie.match(/AuthUser=([^;]+)/)
-   return Promise.resolve(AuthUser && JSON.parse(AuthUser[1]))
-})
+addMethod('user/session', 'get', getSession)
 
 addMethod('account', 'get', accountFind)
 addMethod('account', 'post', updateRemote)
