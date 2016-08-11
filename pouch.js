@@ -81,7 +81,7 @@ function updateRemote(name, path, method, body, query, copy) {
     timeout = 1000 * body.length //one second per record
     body    = {docs:body}
   }
-
+  console.log('updateRemote', method, BASE_URL+path, copy || body)
   return ajax({method,url:BASE_URL+path,body:copy || body, timeout}).then(res => updateProps(method, res, body))
 }
 
@@ -266,9 +266,17 @@ function getSession() {
 
 //Only sync resources after user login. https://github.com/pouchdb/pouchdb/issues/4266
 function postSession() {
-  loading.resources = resources.slice()
-  loading.syncing   = resources.map(function(name) {
-    return sync(name).then(function() {
+  loading.resources  = resources.slice()
+  loading.progress   = {update_seq:0, last_seq:0}
+  loading.syncing    = resources.map(function(name) {
+
+    loading.progress.update_seq += remote[name].update_seq || 0
+
+    return sync(name).on('change', info => {
+      loading.progress[name] = info.change.last_seq
+      loading.progress.last_seq = resources.reduce((a, name)=> a+(loading.progress[name] || 0), 0)
+    })
+    .then(function() {
       console.log('db', name, 'synced')
       sync(name, true)  //save reference so we can cancel sync on logout
       loading.resources.splice(loading.resources.indexOf(name), 1)
@@ -332,11 +340,18 @@ function createDatabase(r) {
   }
 }
 
+
 //Build all the type's indexes
 //PouchDB.debug.enable('pouchdb:find')
 //PouchDB.debug.disable('pouchdb:find')
 function buildIndex(name) {
+
+  remote[name].info().then(function(info) {
+    remote[name].update_seq = info.update_seq
+  })
+
   return local[name].info().then(function(info) {
+
     if (name == 'drug') {
       mangoIndex('upc', 'ndc9')
       customIndex('generic', drugGenericIndex) //Unfortunately mango doesn't currently index arrays so we have to make a traditional map function
