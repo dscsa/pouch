@@ -128,6 +128,7 @@ var _toDoc = {
       _id:doc._id,
       _rev:doc._rev,
       email:doc.email,
+      password:doc.password,
       phone:doc.phone,
       createdAt:doc.createdAt,
       account:{_id:doc.account._id},
