@@ -150,7 +150,12 @@ var _toDoc = {
       ndc9:doc.ndc9,
       upc:doc.upc,
       labeler:doc.labeler,
-      image:doc.image
+      image:doc.image,
+      price:{
+        updatedAt:doc.price.updatedAt,
+        nadac:doc.price.nadac,
+        goodrx:doc.price.goodrx
+      }
     }
   }
 }
