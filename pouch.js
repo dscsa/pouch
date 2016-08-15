@@ -459,7 +459,13 @@ function buildIndex(name) {
     function customIndex(index, mapFn) {
       if (info.update_seq == 0) {
         var design = {_id: '_design/'+name, views:{}}
-        design.views[index] = {map:mapFn.toString()}
+        mapFn = mapFn.toString()
+
+        design.views[index] = {
+          map:mapFn.indexOf('function') == 0
+            ? mapFn
+            : 'function '+mapFn
+        }
         return local[name].put(design).catch(function() {
           console.log('Preparing custom index', name+'/'+index)
         })
