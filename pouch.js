@@ -14,8 +14,13 @@ var loading   = {}
 //this.db.users.delete({})
 //this.db.users.session.post({})
 //this.db.users.email.post({})
-function ajax(opts) {
-  opts.json = true
+function ajax(url, method, body, opts = {}) {
+  opts.url     = BASE_URL+url
+  opts.method  = method
+  opts.body    = body
+  opts.json    = true
+  opts.timeout = opts.timeout || 10000
+
   return new Promise(function(resolve, reject) {
     PouchDB.ajax(opts, function(err, res) {
       if (err) reject(err)
@@ -33,7 +38,7 @@ function sync(name, live) {
   }})
 }
 
-function addMethod(path, method, handler, then) {
+function addMethod(path, method) {
   var arr = path.split('/')
   var obj = Db.prototype
 
@@ -42,80 +47,322 @@ function addMethod(path, method, handler, then) {
     obj = obj[key] = obj[key] || {}
   }
 
-  obj[method] = function(body, query) {
-    return handler(arr[0], path, method, body, query || {}).then(then)
+  obj[method.name] = function(body, opts) {
+    return method(arr[0], path, body, opts || {})
   }
 }
 
-function drugUpdate(name, path, method, body, query) {
-  return update(name, path, method, body, query, removeGeneric(body, body => body))
+function toDoc(name, docs, copy) {
+  if ( ! Array.isArray(docs))
+    return _toDoc[name](docs, copy)
+
+  return docs.map(doc => _toDoc[name](doc, copy))
 }
 
-function drugUpdateRemote(name, path, method, body, query) {
-  return updateRemote(name, path, method, body, query, removeGeneric(body, body => body))
-}
+var _toDoc = {
+  transaction(doc, copy) {
+    addGenericName(doc.drug)
+    return ! copy ? doc : {
+      _id:doc._id,
+      _rev:doc._rev,
+      createdAt:doc.createdAt,
+      verifiedAt:doc.verifiedAt,
+      history:doc.history,
+      exp:{from:doc.exp.from, to:doc.exp.to},
+      qty:{from:doc.qty.from, to:doc.qty.to},
+      location:doc.location,
+      shipment:doc.shipment,
+      user:doc.user,
+      drug:{
+        _id:doc.drug._id,
+        brand:doc.drug.brand,
+        generics:doc.drug.generics,
+        form:doc.drug.form,
+        price:{
+          updatedAt:doc.drug.price.updatedAt,
+          nadac:doc.drug.price.nadac,
+          goodrx:doc.drug.price.goodrx
+        }
+      }
+    }
+  },
 
-function transactionUpdate(name, path, method, body, query) {
-  return update(name, path, method, body, query, removeGeneric(body, body => body.drug))
-}
+  shipment(doc, copy) {
+    return ! copy ? doc : {
+      _id:doc._id,
+      _rev:doc._rev,
+      status:doc.status,
+      tracking:doc.tracking,
+      createdAt:doc.createdAt,
+      account:{
+        to:{
+          _id:doc.account.to._id,
+          name:doc.account.to.name
+        },
+        from:{
+          _id:doc.account.from._id,
+          name:doc.account.from.name
+        }
+      }
+    }
+  },
 
-function transactionUpdateRemote(name, path, method, body, query) {
-  return updateRemote(name, path, method, body, query, removeGeneric(body, body => body.drug))
-}
+  account(doc, copy) {
+    return ! copy ? doc : {
+      _id:doc._id,
+      _rev:doc._rev,
+      license:doc.license,
+      name:doc.name,
+      street:doc.street,
+      state:doc.state,
+      zip:doc.zip,
+      authorized:doc.authorized,
+      ordered:doc.ordered,
+      createdAt:doc.createdAt
+    }
+  },
 
-function removeGeneric(body, getDrug) {
-  let copy = JSON.parse(JSON.stringify(body))
-  addGenericName(getDrug(body))
-  getDrug(copy).generic = undefined
-  return copy
-}
+  user(doc, copy) {
+    return ! copy ? doc : {
+      _id:doc._id,
+      _rev:doc._rev,
+      email:doc.email,
+      phone:doc.phone,
+      createdAt:doc.createdAt,
+      account:{_id:doc.account._id},
+      name:{
+        first:doc.name.first,
+        last:doc.name.last
+      }
+    }
+  },
 
-function update(name, path, method, body, query, copy) {
-  return local[name][method == 'delete' ? 'remove' : method](copy || body).then(res => updateProps(method, res, body))
-}
-
-function updateRemote(name, path, method, body, query, copy) {
-  var timeout = 10000
-  if (method == 'post' && Array.isArray(body)) {
-    path   += '/_bulk_docs'
-    timeout = 1000 * body.length //one second per record
-    body    = {docs:body}
+  drug(doc, copy) {
+    addGenericName(doc)
+    return ! copy ? doc : {
+      _id:doc._id,
+      _rev:doc._rev,
+      createdAt:doc.createdAt,
+      form:doc.form,
+      generics:doc.generics,
+      ndc9:doc.ndc9,
+      upc:doc.upc,
+      labeler:doc.labeler,
+      image:doc.image
+    }
   }
-  console.log('updateRemote', method, BASE_URL+path, copy || body)
-  return ajax({method,url:BASE_URL+path,body:copy || body, timeout}).then(res => updateProps(method, res, body))
 }
 
-//Deep (recursive) merge that keeps references intact to be compatiable with removeGeneric
-//Note delete doesn't have a body
-function updateProps(method, res, body) {
+var localMethod = {
 
-  if (body && method != 'post')
-    body._rev = res.rev || res._rev
-  else if (body)
-    for (let key in res) {
-      typeof res[key] == 'object' && typeof body[key] == 'object'
-        ? updateProps(method, res[key], body[key])
-        : body[key] = res[key]
+  get(name, path, body, opts) {
+    if ( ! body) {//Polyfill for pouchdb-find null selector which returns everything if body is not specified
+
+      path == 'drug' //drug _id is NDC (number) which starts before _ alphabetically
+        ? opts.endkey   = '_design'
+        : opts.startkey = '_design\uffff'
+
+      opts.include_docs = true
+      return local[name].allDocs(opts).then(docs => toDoc(name, docs.rows.map(doc => doc.doc)))
     }
 
+    //Quick get if _id is specified
+    if (typeof body._id == 'string')
+      return local[name].get(body._id).then(doc => toDoc(name, [doc]))
+
+    if (body.generic)
+      return queries[name].generic(body.generic, opts)
+
+    if (body.ndc)
+      return queries[name].ndc(body.ndc, opts).then(docs => toDoc(name, docs))
+
+    if (body.authorized)
+      return queries[name].authorized(body.authorized, opts).then(docs => toDoc(name, docs))
+
+    opts.selector = body
+    return local[name].find(opts).then(res => toDoc(name, res.docs.reverse()))
+  },
+
+  put(name, path, body) {
+    return local[name].put(toDoc(name, body, true)).then(res => updateRev(res, body))
+  },
+
+  //Delete doesn't have a body to update
+  delete(name, path, body) {
+    return local[path].remove(body)
+  }
+}
+
+var remoteMethod = {
+
+  get(name, path, body, opts) {
+    return session.get().then(session => {
+      if (body.generic && body['shipment._id'] == session.account._id)
+        return queries[name].generic(body.generic, opts)
+
+      opts.selector = body
+      opts = Object.keys(opts).map(i => i+'='+JSON.stringify(opts[i])).join('&')
+
+      return ajax(path+'?'+opts, 'get').then(docs => toDoc(name, docs.reverse()))
+    })
+  },
+
+  put(name, path, body) {
+    return ajax(path, 'put', toDoc(name, body, true)).then(res => updateRev(res, body))
+  },
+
+  //Delete usually doesn't need to update anything unless it's like transactions/verified
+  delete(name, path, body) {
+    return ajax(path, 'delete', body).then(res => updateProps(res, body))
+  },
+
+  //No postLocal.  All post's are remote for short _ids
+  post(name, path, body, opts) {
+    if (Array.isArray(body)) {
+      var doc = {docs:toDoc(name, body, true)}
+      path += '/_bulk_docs',
+      opts.timeout = 1000 * body.length //one second per record
+    } else {
+      var doc = toDoc(name, body, true)
+    }
+
+    return ajax(path, 'post', doc, opts).then(res => updateProps(res, body))
+  }
+}
+
+var session = {
+  get() {
+     let AuthUser = document.cookie && document.cookie.match(/AuthUser=([^;]+)/)
+     return Promise.resolve(AuthUser && JSON.parse(AuthUser[1]))
+  },
+
+  //Only sync resources after user login. https://github.com/pouchdb/pouchdb/issues/4266
+  post(name, path, body, opts) {
+    return ajax(path, 'post', body, opts).then(_ => {
+      var loading = {
+        resources:resources.slice(),
+        progress:{update_seq:0, last_seq:0}
+      }
+
+      loading.syncing = resources.map(function(name) {
+        loading.progress.update_seq += remote[name].update_seq || 0
+        return sync(name).on('change', info => {
+          loading.progress[name] = info.change.last_seq
+          loading.progress.last_seq = resources.reduce((a, name)=> a+(loading.progress[name] || 0), 0)
+        })
+        .then(function() {
+          console.log('db', name, 'synced')
+          sync(name, true)  //save reference so we can cancel sync on logout
+          loading.resources.splice(loading.resources.indexOf(name), 1)
+          buildIndex(name)
+        })
+      })
+      return loading
+    })
+    .catch(err => console.log('err', err))
+  },
+
+  //Stop database sync on logout
+  //Recreate some databases on logout
+  delete(name, path, body, opts) {
+    return ajax(path, 'post', doc, opts).then(_ => {
+      return Promise.all(resources.map(function(name) {
+        //keep these two for the next user's session
+        if (name == 'account' || name == 'drug') {
+          //Check if synced because a refresh on logout
+          return synced[name] && synced[name].cancel()
+        }
+
+        //Destroying will stop these from syncing as well
+        return local[name].destroy().then(function() {
+          delete local[name]
+          delete remote[name]
+          delete synced[name]
+          return createDatabase(name)
+        })
+      }))
+    })
+  }
+}
+
+function updateRev(res, body) {
+  body._rev = res.rev || res._rev
   return res
 }
 
-function accountAuthorized(accountId) {
-  //TODO can we abstract this into a {$text:term} mango query so that we can support more than just generic
-  var opts   = {startkey:accountId, endkey:accountId+'\uffff', include_docs:true}
-  return local.account.query('account/authorized', opts).then(accounts => {
-    return accounts.rows.map(row => row.doc)
-  })
-  .catch(_ => console.log('accountAuthorized Error', new Error(_).stack))
+//Deep (recursive) merge that keeps references intact to be compatiable with excludeProperties
+//Note delete doesn't have a body
+function updateProps(res, body) {
+  for (let key in res) {
+    typeof res[key] == 'object' && typeof body[key] == 'object'
+      ? updateProps(res[key], body[key])
+      : body[key] = res[key]
+  }
+  return res
 }
 
-function drugGenericFind(generic) {
-  return genericFind(generic, 'drug/generic', drug => drug)
-}
+var queries = {
+  account:{
+    authorized(accountId) {
+      //TODO can we abstract this into a {$text:term} mango query so that we can support more than just generic
+      var opts = {startkey:accountId, endkey:accountId+'\uffff', include_docs:true}
+      return local.account.query('account/authorized', opts).then(res => res.rows.map(row => row.doc))
+      .catch(_ => console.log('accountAuthorized Error', new Error(_).stack))
+    }
+  },
+  transaction:{
+    generic(generic) {
+      return genericFind(generic, 'transaction/inventoryGeneric', transaction => transaction.drug)
+    }
+  },
+  drug:{
+    generic(generic) {
+      return genericFind(generic, 'drug/generic', drug => drug)
+    },
+    ndc(ndc) {
+      var term = ndc.replace(/-/g, '')
 
-function inventoryGenericFind(generic) {
-  return genericFind(generic, 'transaction/inventoryGeneric', transaction => transaction.drug)
+      //This is a UPC barcode ('3'+10 digit upc+checksum).
+      if (term.length == 12 && term[0] == '3')
+        term = term.slice(1, -1)
+
+      //Full 11 digit NDC
+      if (term.length == 11)
+        return drugNdc9Find(term, 9).then(pkgCode)
+
+      //Full 10 digit UPC
+      if (term.length == 10)
+        return drugUpcFind(term, 9).then(drugs => drugs.length ? drugs : drugUpcFind(term, 8)).then(pkgCode)
+
+      //If 9 digit or >12 digit, user is likely including a 1 or 2 digit package code with an exact NDC,
+      if (term.length > 8)
+        return drugNdc9Find(term, 9).then(drugs => drugs.length ? drugs : drugUpcFind(term, 8)).then(pkgCode)
+
+      //8 or less digits means we have a inexact search which could be UPC or NDC
+      var upc  = local.drug.find({selector:{ upc:{$gte:term, $lt:term+'\uffff'}}, limit:200})
+      var ndc9 = local.drug.find({selector:{ndc9:{$gte:term, $lt:term+'\uffff'}}, limit:200})
+
+      return Promise.all([upc, ndc9]).then(deduplicate)
+
+      function pkgCode(drugs) {
+        //If found, include the package code in the result
+        return drugs.map(drug => {
+          var ndc9  = '^'+drug.ndc9+'(\\d{1,2})$'
+          var upc   = '^'+drug.upc+'(\\d{1,2})$'
+          var match = term.match(RegExp(ndc9+'|'+upc))
+          if (match)
+            drug.pkg = match[1] || match[2] || match[3] || ''
+
+          return drug
+        })
+      }
+      //To avoid duplicates in upc search, filter out where term is less than ndc9 labeler (no difference between upc an ndc9 here)
+      //and where upc is not 9 (no difference between ndc9 and upc when upc is length 9).
+      function deduplicate(results) {
+        return results[0].docs.filter(function(drug) { return drug.upc.length != 9 }).concat(results[1].docs)
+      }
+    }
+  }
 }
 
 function genericFind(generic, index, getDrug) {
@@ -124,186 +371,25 @@ function genericFind(generic, index, getDrug) {
   return local[index.split('/')[0]].query(index, opts).then(function(res) {
     //Use lookaheads to search for each word separately (no order)
     var regex  = RegExp('(?=.*'+tokens.join(')(?=.*')+')', 'i')
+
     let result = []
     for (let row of res.rows) {
-      let doc  = row.doc
-      let drug = getDrug(doc)
-      addGenericName(drug)
+      let drug = toDoc('drug', getDrug(row.doc))
 
       if ( ! tokens[1] || regex.test(drug.generic))
-        result.push(doc)
+        result.push(row.doc)
     }
 
     return result
   })
 }
 
-function upcFind(upc, len) {
-  return local.drug.find({selector:{upc:upc.slice(0, len)}, limit:1}).then(res => {
-    for (let drug of res.docs) addGenericName(drug)
-    return res.docs
-  })
+function drugUpcFind(upc, len) {
+  return local.drug.find({selector:{upc:upc.slice(0, len)}, limit:1}).then(res => toDoc('drug', res.docs))
 }
 
-function ndc9Find(ndc9, len) {
-  return local.drug.find({selector:{ndc9:ndc9.slice(0, len)}, limit:1}).then(res => {
-    for (let drug of res.docs) addGenericName(drug)
-    return res.docs
-  })
-}
-
-function ndcFind(ndc) {
-  var term = ndc.replace(/-/g, '')
-
-  //This is a UPC barcode ('3'+10 digit upc+checksum).
-  if (term.length == 12 && term[0] == '3')
-    term = term.slice(1, -1)
-
-  //Full 11 digit NDC
-  if (term.length == 11)
-    return ndc9Find(term, 9).then(pkgCode)
-
-  //Full 10 digit UPC
-  if (term.length == 10)
-    return upcFind(term, 9).then(drugs => drugs.length ? drugs : upcFind(term, 8)).then(pkgCode)
-
-  //If 9 digit or >12 digit, user is likely including a 1 or 2 digit package code with an exact NDC,
-  if (term.length > 8)
-    return ndc9Find(term, 9).then(drugs => drugs.length ? drugs : upcFind(term, 8)).then(pkgCode)
-
-  //8 or less digits means we have a inexact search which could be UPC or NDC
-  var upc  = local.drug.find({selector:{ upc:{$gte:term, $lt:term+'\uffff'}}, limit:200})
-  var ndc9 = local.drug.find({selector:{ndc9:{$gte:term, $lt:term+'\uffff'}}, limit:200})
-
-  return Promise.all([upc, ndc9]).then(deduplicate).then(drugs => {
-    for (let drug of drugs) addGenericName(drug)
-    return drugs
-  })
-
-  function pkgCode(drugs) {
-    //If found, include the package code in the result
-    return drugs.map(drug => {
-      var ndc9  = '^'+drug.ndc9+'(\\d{1,2})$'
-      var upc   = '^'+drug.upc+'(\\d{1,2})$'
-      var match = term.match(RegExp(ndc9+'|'+upc))
-      if (match)
-        drug.pkg = match[1] || match[2] || match[3] || ''
-
-      return drug
-    })
-  }
-  //To avoid duplicates in upc search, filter out where term is less than ndc9 labeler (no difference between upc an ndc9 here)
-  //and where upc is not 9 (no difference between ndc9 and upc when upc is length 9).
-  function deduplicate(results) {
-    return results[0].docs.filter(function(drug) { return drug.upc.length != 9 }).concat(results[1].docs)
-  }
-}
-
-function drugFind(name, path, method, selector, query) {
-  if (selector && selector.generic)
-    return drugGenericFind(selector.generic)
-
-  if (selector && selector.ndc)
-    return ndcFind(selector.ndc)
-
-  return find.apply(this, arguments).then(function(drugs) {
-    for (let drug of drugs)
-      addGenericName(drug)
-
-    return drugs
-  })
-}
-
-function transactionFind(name, path, method, selector, query) {
-  return getSession().then(session => {
-    if (selector && selector['shipment._id'] == session.account._id && selector.generic)
-      return inventoryGenericFind(selector.generic)
-
-    return findRemote.apply(this, arguments).then(function(transactions) {
-      for (let transaction of transactions)
-        addGenericName(transaction.drug)
-
-      return transactions
-    })
-  })
-}
-
-function accountFind(name, path, method, selector, query) {
-  if (selector && selector.authorized)
-    return accountAuthorized(selector.authorized)
-
-  return find.apply(this, arguments)
-}
-
-function find(name, path, method, selector, query) {
-  var start = performance.now()
-  if (selector && typeof selector._id == 'string' && ! query)
-    return local[name].get(selector._id).then(function(doc) {
-      console.log('found', name, 'with _id', selector._id, 'in', (performance.now() - start).toFixed(2), 'ms')
-      return [doc]
-    })
-
-  query.selector = selector
-  return local[name].find(query).then(function(res) {
-    console.log('found', res.docs.length, name+'s with query', JSON.stringify(query), 'in', (performance.now() - start).toFixed(2), 'ms')
-    return res.docs.reverse()
-  })
-}
-
-function findRemote(name, path, method, selector, query) {
-  query.selector = selector
-  query = Object.keys(query).map(function(key) {
-     return key + '=' + JSON.stringify(query[key])
-  })
-
-  return ajax({method:'GET', url:BASE_URL+path+'?'+query.join('&')}).then(docs => docs.reverse())
-}
-
-function getSession() {
-   let AuthUser = document.cookie && document.cookie.match(/AuthUser=([^;]+)/)
-   return Promise.resolve(AuthUser && JSON.parse(AuthUser[1]))
-}
-
-//Only sync resources after user login. https://github.com/pouchdb/pouchdb/issues/4266
-function postSession() {
-  loading.resources  = resources.slice()
-  loading.progress   = {update_seq:0, last_seq:0}
-  loading.syncing    = resources.map(function(name) {
-
-    loading.progress.update_seq += remote[name].update_seq || 0
-
-    return sync(name).on('change', info => {
-      loading.progress[name] = info.change.last_seq
-      loading.progress.last_seq = resources.reduce((a, name)=> a+(loading.progress[name] || 0), 0)
-    })
-    .then(function() {
-      console.log('db', name, 'synced')
-      sync(name, true)  //save reference so we can cancel sync on logout
-      loading.resources.splice(loading.resources.indexOf(name), 1)
-      buildIndex(name)
-    })
-  })
-  return loading
-}
-
-//Stop database sync on logout
-//Recreate some databases on logout
-function deleteSession() {
-  return Promise.all(resources.map(function(name) {
-    //keep these two for the next user's session
-    if (name == 'account' || name == 'drug') {
-      //Check if synced because a refresh on logout
-      return synced[name] && synced[name].cancel()
-    }
-
-    //Destroying will stop these from syncing as well
-    return local[name].destroy().then(function() {
-      delete local[name]
-      delete remote[name]
-      delete synced[name]
-      return createDatabase(name)
-    })
-  }))
+function drugNdc9Find(ndc9, len) {
+  return local.drug.find({selector:{ndc9:ndc9.slice(0, len)}, limit:1}).then(res => toDoc('drug', res.docs))
 }
 
 //Create databases on load/refresh
@@ -318,28 +404,7 @@ function createDatabase(r) {
   remote[r] = remote[r] || new PouchDB('http:'+BASE_URL+r)
   buildIndex(r)
   setTimeout(_ => sync(r, true), 5000) //Kiah's laptop was maxing out on TCP connections befor app-bundle loaded.  Wait on _changes into static assets can load
-
-  //Polyfill for find to support null selector
-  //TODO get rid of this polyfill once mango supports .find() with null selector
-  var find = local[r].find.bind(local[r])
-
-  local[r].find = function(opts) {
-
-    if (opts.selector)
-      return find(opts)
-
-    r == 'drug' //drug _id is NDC (number) which starts before _ alphabetically
-      ? opts.endkey   = '_design'
-      : opts.startkey = '_design\uffff'
-
-    opts.include_docs = true
-
-    return local[r].allDocs(opts).then(function(docs) {
-      return {docs:docs.rows.map(function(doc) { return doc.doc })}
-    })
-  }
 }
-
 
 //Build all the type's indexes
 //PouchDB.debug.enable('pouchdb:find')
@@ -354,12 +419,12 @@ function buildIndex(name) {
 
     if (name == 'drug') {
       mangoIndex('upc', 'ndc9')
-      customIndex('generic', drugGenericIndex) //Unfortunately mango doesn't currently index arrays so we have to make a traditional map function
+      customIndex('generic', index.drugGeneric) //Unfortunately mango doesn't currently index arrays so we have to make a traditional map function
     }
 
     else if (name == 'account') {
       mangoIndex('state')
-      customIndex('authorized', authorizedIndex) //Unfortunately mango doesn't currently index arrays so we have to make a traditional map function
+      customIndex('authorized', index.authorized) //Unfortunately mango doesn't currently index arrays so we have to make a traditional map function
     }
 
     else if (name == 'user')
@@ -370,7 +435,7 @@ function buildIndex(name) {
 
     else if (name == 'transaction') {
       mangoIndex('shipment._id', 'createdAt', 'verifiedAt')
-      customIndex('inventoryGeneric', inventoryGenericIndex)
+      customIndex('inventoryGeneric', index.inventoryGeneric)
     }
 
     function mangoIndex() {
@@ -383,7 +448,7 @@ function buildIndex(name) {
         }
 
         var start  = Date.now()
-        local[name].find({limit:0}).then(function() {
+        local[name].find({selector:{[field]:true}, limit:0}).then(function() {
           console.log('Mango index', name+'/'+field, 'built in', Date.now() - start)
         })
       })
@@ -406,73 +471,68 @@ function buildIndex(name) {
   })
 }
 
-function authorizedIndex(doc) {
-  for (var i in doc.authorized) {
-    emit(doc.authorized[i])
+var index = {
+  authorized(doc) {
+    for (var i in doc.authorized) {
+      emit(doc.authorized[i])
+    }
+  },
+  drugGeneric(doc) {
+    for (var i in doc.generics) {
+      if ( ! doc.generics[i].name)
+        log('drug generic map error for', doc)
+
+      emit(doc.generics[i].name.toLowerCase())
+    }
+  },
+  inventoryGeneric(doc) {
+    for (var i in doc.drug.generics) {
+      if ( ! doc.drug.generics[i].name)
+        log('transaction generic map error for', doc)
+
+      if (doc.shipment._id.split('.').length == 1) //inventory only
+        emit(doc.drug.generics[i].name.toLowerCase())
+    }
   }
 }
 
-function drugGenericIndex(doc) {
-  for (var i in doc.generics) {
-    if ( ! doc.generics[i].name)
-      log('drug generic map error for', doc)
-
-    emit(doc.generics[i].name.toLowerCase())
-  }
-}
-
-function inventoryGenericIndex(doc) {
-  for (var i in doc.drug.generics) {
-    if ( ! doc.drug.generics[i].name)
-      log('transaction generic map error for', doc)
-
-    if (doc.shipment._id.split('.').length == 1) //inventory only
-      emit(doc.drug.generics[i].name.toLowerCase())
-  }
-}
 
 function addGenericName(drug) {
   drug.generic = drug.generics.map(generic => generic.name+" "+generic.strength).join(', ')+' '+drug.form
 }
 
-addMethod('user', 'get', find)
-addMethod('user', 'post', updateRemote)
-addMethod('user', 'put', update)
-addMethod('user', 'delete', update)
-addMethod('user/session', 'post', updateRemote, postSession)
-addMethod('user/session', 'delete', updateRemote, deleteSession)
-addMethod('user/session', 'get', getSession)
+addMethod('user', localMethod.get)
+addMethod('user', remoteMethod.post)
+addMethod('user', localMethod.put)
+addMethod('user', localMethod.delete)
+addMethod('user/session', session.post)
+addMethod('user/session', session.delete)
+addMethod('user/session', session.get)
 
-addMethod('account', 'get', accountFind)
-addMethod('account', 'post', updateRemote)
-addMethod('account', 'put', update)
-addMethod('account', 'delete', update)
-addMethod('account/authorized', 'post', updateRemote)
-addMethod('account/authorized', 'delete', updateRemote)
+addMethod('account', localMethod.get)
+addMethod('account', remoteMethod.post)
+addMethod('account', localMethod.put)
+addMethod('account', localMethod.delete)
+addMethod('account/authorized', remoteMethod.post)
+addMethod('account/authorized', remoteMethod.delete)
 
-addMethod('shipment', 'get', find)
-addMethod('shipment', 'post', updateRemote)
-addMethod('shipment', 'put', update)
-addMethod('shipment', 'delete', update)
-
+addMethod('shipment', localMethod.get)
+addMethod('shipment', remoteMethod.post)
+addMethod('shipment', localMethod.put)
+addMethod('shipment', localMethod.delete)
 //TODO custom methods for pickup, shipped, received
 // addMethod('shipment/attachment', 'get')
 // addMethod('shipment/attachment', 'post')
 // addMethod('shipment/attachment', 'delete')
-// if (typeof arg == 'string')
-//   return local['shipments'].getAttachment(selector._id, arg)
-// console.log('saving attachment', selector._id, arg._id, arg._rev, arg, arg.type)
-// return local['shipments']
-// .putAttachment(selector._id, arg._id, arg._rev, arg, arg.type)
 
-addMethod('transaction', 'get', transactionFind)
-addMethod('transaction', 'post', transactionUpdateRemote)
-addMethod('transaction', 'put', transactionUpdateRemote)
-addMethod('transaction', 'delete', transactionUpdateRemote)
-addMethod('transaction/verified', 'post', updateRemote)
-addMethod('transaction/verified', 'delete', updateRemote)
+addMethod('transaction', remoteMethod.get)
+addMethod('transaction', remoteMethod.post)
+addMethod('transaction', remoteMethod.put)
+addMethod('transaction', remoteMethod.delete)
+addMethod('transaction/verified', remoteMethod.post)
+addMethod('transaction/verified', remoteMethod.delete)
 
-addMethod('drug', 'get', drugFind)
-addMethod('drug', 'post', drugUpdateRemote)
-addMethod('drug', 'put', drugUpdate)
-addMethod('drug', 'delete', drugUpdate)
+addMethod('drug', localMethod.get)
+addMethod('drug', remoteMethod.post)
+addMethod('drug', localMethod.put)
+addMethod('drug', localMethod.delete)
