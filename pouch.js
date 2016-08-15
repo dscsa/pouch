@@ -20,7 +20,7 @@ function ajax(url, method, body, opts = {}) {
   opts.body    = body
   opts.json    = true
   opts.timeout = opts.timeout || 10000
-
+console.log('ajax', opts)
   return new Promise(function(resolve, reject) {
     PouchDB.ajax(opts, function(err, res) {
       if (err) reject(err)
@@ -267,7 +267,7 @@ var session = {
   //Stop database sync on logout
   //Recreate some databases on logout
   delete(name, path, body, opts) {
-    return ajax(path, 'post', doc, opts).then(_ => {
+    return ajax(path, 'delete', body, opts).then(_ => {
       return Promise.all(resources.map(function(name) {
         //keep these two for the next user's session
         if (name == 'account' || name == 'drug') {
