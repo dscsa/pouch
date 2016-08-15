@@ -114,6 +114,7 @@ var _toDoc = {
       license:doc.license,
       name:doc.name,
       street:doc.street,
+      city:doc.city,
       state:doc.state,
       zip:doc.zip,
       authorized:doc.authorized,
