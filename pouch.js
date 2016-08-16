@@ -140,6 +140,7 @@ var _toDoc = {
   },
 
   drug(doc, copy) {
+    doc.price = doc.price || {}
     addGenericName(doc)
     return ! copy ? doc : {
       _id:doc._id,
