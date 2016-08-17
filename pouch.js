@@ -20,7 +20,6 @@ function ajax(url, method, body, opts = {}) {
   opts.body    = body
   opts.json    = true
   opts.timeout = opts.timeout || 10000
-console.log('ajax', opts)
   return new Promise(function(resolve, reject) {
     PouchDB.ajax(opts, function(err, res) {
       if (err) reject(err)
