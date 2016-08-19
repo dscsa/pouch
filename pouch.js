@@ -147,6 +147,7 @@ var _toDoc = {
       createdAt:doc.createdAt,
       form:doc.form,
       generics:doc.generics,
+      brand:doc.brand,
       ndc9:doc.ndc9,
       upc:doc.upc,
       labeler:doc.labeler,
