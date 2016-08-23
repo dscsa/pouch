@@ -77,6 +77,7 @@ var _toDoc = {
         brand:doc.drug.brand,
         generics:doc.drug.generics,
         form:doc.drug.form,
+        pkg:doc.drug.pkg,
         price:{
           updatedAt:doc.drug.price.updatedAt,
           nadac:doc.drug.price.nadac,
