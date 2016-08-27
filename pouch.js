@@ -268,7 +268,6 @@ var session = {
       })
       return loading
     })
-    .catch(err => console.log('err', err))
   },
 
   //Stop database sync on logout
