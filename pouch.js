@@ -261,11 +261,15 @@ var session = {
         })
         .then(function() {
           console.log('db', name, 'synced')
-          sync(name, true)  //save reference so we can cancel sync on logout
           loading.resources.splice(loading.resources.indexOf(name), 1)
           buildIndex(name)
         })
       })
+
+      Promise.all(loading.syncing).then(_ => {
+        for (let name of resources) sync(name, true) //this uses up a tcp connection with long-polling so wait until all db sync before going "live"
+      })
+
       return loading
     })
   },
