@@ -1,10 +1,8 @@
 window.Db = function Db() {}
 var BASE_URL = '//'+window.location.hostname+'/'
 //Intention to keep syntax as close to the REST API as possible.
-var resources = ['drug', 'account', 'user', 'shipment', 'transaction']
-var synced    = {}
-var remote    = {}
-var local     = {}
+var resources = ['drug', 'account', 'user', 'shipment'] //Don't sync transaction to increase installation speed
+var db        = {}
 var loading   = {}
 
 //Client
@@ -26,15 +24,6 @@ function ajax(url, method, body, opts = {}) {
       else resolve(res)
     })
   })
-}
-
-function sync(name, live) {
-  if ( ! ~ document.cookie.indexOf('AuthUser'))
-    return Promise.resolve()
-
-  return synced[name] = remote[name].sync(local[name], {live:live, retry:true, filter:function(doc) {
-      return doc._id.indexOf('_design') !== 0
-  }})
 }
 
 function addMethod(path, method) {
@@ -60,7 +49,6 @@ function toDoc(name, docs, copy) {
 
 var _toDoc = {
   transaction(doc, copy) {
-    addGenericName(doc.drug)
     return ! copy ? doc : {
       _id:doc._id,
       _rev:doc._rev,
@@ -75,6 +63,7 @@ var _toDoc = {
       drug:{
         _id:doc.drug._id,
         brand:doc.drug.brand,
+        generic:doc.drug.generic,
         generics:doc.drug.generics,
         form:doc.drug.form,
         pkg:doc.drug.pkg,
@@ -141,13 +130,13 @@ var _toDoc = {
 
   drug(doc, copy) {
     doc.price = doc.price || {}
-    addGenericName(doc)
     return ! copy ? doc : {
       _id:doc._id,
       _rev:doc._rev,
       createdAt:doc.createdAt,
       form:doc.form,
       generics:doc.generics,
+      generic:doc.generic,
       brand:doc.brand,
       ndc9:doc.ndc9,
       upc:doc.upc,
@@ -172,12 +161,12 @@ var localMethod = {
         : opts.startkey = '_design\uffff'
 
       opts.include_docs = true
-      return local[name].allDocs(opts).then(docs => toDoc(name, docs.rows.map(doc => doc.doc)))
+      return db[name].allDocs(opts).then(docs => toDoc(name, docs.rows.map(doc => doc.doc)))
     }
 
     //Quick get if _id is specified
     if (typeof body._id == 'string')
-      return local[name].get(body._id).then(doc => toDoc(name, [doc]))
+      return db[name].get(body._id).then(doc => toDoc(name, [doc]))
 
     if (body.generic)
       return queries[name].generic(body.generic, opts)
@@ -189,16 +178,16 @@ var localMethod = {
       return queries[name].authorized(body.authorized, opts).then(docs => toDoc(name, docs))
 
     opts.selector = body
-    return local[name].find(opts).then(res => toDoc(name, res.docs.reverse()))
+    return db[name].find(opts).then(res => toDoc(name, res.docs.reverse()))
   },
 
   put(name, path, body) {
-    return local[name].put(toDoc(name, body, true)).then(res => updateRev(res, body))
+    return db[name].put(toDoc(name, body, true)).then(res => updateRev(res, body))
   },
 
   //Delete doesn't have a body to update
   delete(name, path, body) {
-    return local[path].remove(body)
+    return db[path].remove(body)
   }
 }
 
@@ -206,8 +195,6 @@ var remoteMethod = {
 
   get(name, path, body, opts) {
     return session.get().then(session => {
-      if (body.generic && body['shipment._id'] == session.account._id)
-        return queries[name].generic(body.generic, opts)
 
       opts.selector = body
       opts = Object.keys(opts).map(i => i+'='+JSON.stringify(opts[i])).join('&')
@@ -225,7 +212,7 @@ var remoteMethod = {
     return ajax(path, 'delete', body).then(res => updateProps(res, body))
   },
 
-  //No postLocal.  All post's are remote for short _ids
+  //No postLocal  All post's are remote for short _ids
   post(name, path, body, opts) {
     if (Array.isArray(body)) {
       var doc = {docs:toDoc(name, body, true)}
@@ -247,6 +234,7 @@ var session = {
 
   //Only sync resources after user login. https://github.com/pouchdb/pouchdb/issues/4266
   post(name, path, body, opts) {
+    console.log('session post', name, path, body, opts)
     return ajax(path, 'post', body, opts).then(_ => {
       var loading = {
         resources:resources.slice(),
@@ -254,7 +242,7 @@ var session = {
       }
 
       loading.syncing = resources.map(function(name) {
-        loading.progress.update_seq += remote[name].update_seq || 0
+        loading.progress.update_seq += db[name].remote.update_seq
         return sync(name).on('change', info => {
           loading.progress[name] = info.change.last_seq
           loading.progress.last_seq = resources.reduce((a, name)=> a+(loading.progress[name] || 0), 0)
@@ -282,14 +270,12 @@ var session = {
         //keep these two for the next user's session
         if (name == 'account' || name == 'drug') {
           //Check if synced because a refresh on logout
-          return synced[name] && synced[name].cancel()
+          return db[name]._sync && db[name]._sync.cancel()
         }
 
         //Destroying will stop these from syncing as well
-        return local[name].destroy().then(function() {
-          delete local[name]
-          delete remote[name]
-          delete synced[name]
+        return db[name].destroy().then(function() {
+          delete db[name]
           return createDatabase(name)
         })
       }))
@@ -318,19 +304,28 @@ var queries = {
     authorized(accountId) {
       //TODO can we abstract this into a {$text:term} mango query so that we can support more than just generic
       var opts = {startkey:accountId, endkey:accountId+'\uffff', include_docs:true}
-      return local.account.query('account/authorized', opts).then(res => res.rows.map(row => row.doc))
+      return db.account.query('account/authorized', opts).then(res => res.rows.map(row => row.doc))
       .catch(_ => console.log('accountAuthorized Error', new Error(_).stack))
-    }
-  },
-  transaction:{
-    generic(generic) {
-      return genericFind(generic, 'transaction/inventoryGeneric', transaction => transaction.drug)
     }
   },
   drug:{
     generic(generic) {
-      return genericFind(generic, 'drug/generic', drug => drug)
+      var tokens = generic.toLowerCase().replace('.', '\\.').split(/, |[, ]/g)
+      var opts   = {startkey:tokens[0], endkey:tokens[0]+'\uffff', include_docs:true}
+      return db.drug.query('drug/generic', opts).then(function(res) {
+        //Use lookaheads to search for each word separately (no order)
+        var regex  = RegExp('(?=.*'+tokens.join(')(?=.*')+')', 'i')
+
+        let result = []
+        for (let row of res.rows) {
+          if ( ! tokens[1] || regex.test(row.doc.generic))
+            result.push(row.doc)
+        }
+
+        return result
+      })
     },
+
     ndc(ndc) {
       var term = ndc.replace(/-/g, '')
 
@@ -351,8 +346,8 @@ var queries = {
         return drugNdc9Find(term, 9).then(drugs => drugs.length ? drugs : drugUpcFind(term, 8)).then(pkgCode)
 
       //8 or less digits means we have a inexact search which could be UPC or NDC
-      var upc  = local.drug.find({selector:{ upc:{$gte:term, $lt:term+'\uffff'}}, limit:200})
-      var ndc9 = local.drug.find({selector:{ndc9:{$gte:term, $lt:term+'\uffff'}}, limit:200})
+      var upc  = db.drug.find({selector:{ upc:{$gte:term, $lt:term+'\uffff'}}, limit:200})
+      var ndc9 = db.drug.find({selector:{ndc9:{$gte:term, $lt:term+'\uffff'}}, limit:200})
 
       return Promise.all([upc, ndc9]).then(deduplicate)
 
@@ -377,31 +372,12 @@ var queries = {
   }
 }
 
-function genericFind(generic, index, getDrug) {
-  var tokens = generic.toLowerCase().replace('.', '\\.').split(/, |[, ]/g)
-  var opts   = {startkey:tokens[0], endkey:tokens[0]+'\uffff', include_docs:true}
-  return local[index.split('/')[0]].query(index, opts).then(function(res) {
-    //Use lookaheads to search for each word separately (no order)
-    var regex  = RegExp('(?=.*'+tokens.join(')(?=.*')+')', 'i')
-
-    let result = []
-    for (let row of res.rows) {
-      let drug = toDoc('drug', getDrug(row.doc))
-
-      if ( ! tokens[1] || regex.test(drug.generic))
-        result.push(row.doc)
-    }
-
-    return result
-  })
-}
-
 function drugUpcFind(upc, len) {
-  return local.drug.find({selector:{upc:upc.slice(0, len)}, limit:1}).then(res => toDoc('drug', res.docs))
+  return db.drug.find({selector:{upc:upc.slice(0, len)}, limit:1}).then(res => toDoc('drug', res.docs))
 }
 
 function drugNdc9Find(ndc9, len) {
-  return local.drug.find({selector:{ndc9:ndc9.slice(0, len)}, limit:1}).then(res => toDoc('drug', res.docs))
+  return db.drug.find({selector:{ndc9:ndc9.slice(0, len)}, limit:1}).then(res => toDoc('drug', res.docs))
 }
 
 //Create databases on load/refresh
@@ -412,10 +388,20 @@ function drugNdc9Find(ndc9, len) {
 //4. Poly Fill Find
 resources.forEach(createDatabase)
 function createDatabase(r) {
-   local[r] =  local[r] || new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
-  remote[r] = remote[r] || new PouchDB('http:'+BASE_URL+r)
+
+  db[r] = db[r] || new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
+  db[r].remote = db[r].remote || new PouchDB('http:'+BASE_URL+r)
+  db[r].remote.info().then(info => db[r].remote.update_seq = info.update_seq)
+
   buildIndex(r)
-  setTimeout(_ => sync(r, true), 5000) //Kiah's laptop was maxing out on TCP connections befor app-bundle loaded.  Wait on _changes into static assets can load
+
+  session.get().then(session => {
+    session && setTimeout(_ => sync(r, true), 5000) //Kiah's laptop was maxing out on TCP connections befor app-bundle loaded.  Wait on _changes into static assets can load
+  })
+}
+
+function sync(r, live) {
+ return db[r]._sync = db[r].sync(db[r].remote, {live:live, retry:true, filter:doc => doc._id.indexOf('_design') !== 0 })
 }
 
 //Build all the type's indexes
@@ -423,11 +409,7 @@ function createDatabase(r) {
 //PouchDB.debug.disable('pouchdb:find')
 function buildIndex(name) {
 
-  remote[name].info().then(function(info) {
-    remote[name].update_seq = info.update_seq
-  })
-
-  return local[name].info().then(function(info) {
+  return db[name].info().then(function(info) {
 
     if (name == 'drug') {
       mangoIndex('upc', 'ndc9')
@@ -445,22 +427,17 @@ function buildIndex(name) {
     else if (name == 'shipment')
       mangoIndex('tracking', 'account.to._id', 'account.from._id')
 
-    else if (name == 'transaction') {
-      mangoIndex('shipment._id', 'createdAt', 'verifiedAt')
-      customIndex('inventoryGeneric', index.inventoryGeneric)
-    }
-
     function mangoIndex() {
       [].slice.call(arguments).forEach(function(field) { //need to freeze field which doesn't happen with a for..in loop
         var field = Array.isArray(field) ? field : [field]
         if (info.update_seq == 0) {
-          return local[name].createIndex({index:{fields:field}}).catch(function() {
+          return db[name].createIndex({index:{fields:field}}).catch(function() {
             console.log('Preparing mango index', name+'/'+field)
           })
         }
 
         var start  = Date.now()
-        local[name].find({selector:{[field]:true}, limit:0}).then(function() {
+        db[name].find({selector:{[field]:true}, limit:0}).then(function() {
           console.log('Mango index', name+'/'+field, 'built in', Date.now() - start)
         })
       })
@@ -476,13 +453,13 @@ function buildIndex(name) {
             ? mapFn
             : 'function '+mapFn
         }
-        return local[name].put(design).catch(function() {
+        return db[name].put(design).catch(function() {
           console.log('Preparing custom index', name+'/'+index)
         })
       }
 
       var start = Date.now()
-      return local[name].query(name+'/'+index, {limit:0}).then(function() {
+      return db[name].query(name+'/'+index, {limit:0}).then(function() {
         console.log('Custom index', name+'/'+index, 'built in', Date.now() - start)
       })
     }
@@ -495,6 +472,8 @@ var index = {
       emit(doc.authorized[i])
     }
   },
+
+  //TODO can we have a built-in grouping or reduce function since both the drug and inventory pages group by generic name manually right now
   drugGeneric(doc) {
     for (var i in doc.generics) {
       if ( ! doc.generics[i].name)
@@ -502,21 +481,7 @@ var index = {
 
       emit(doc.generics[i].name.toLowerCase())
     }
-  },
-  inventoryGeneric(doc) {
-    for (var i in doc.drug.generics) {
-      if ( ! doc.drug.generics[i].name)
-        log('transaction generic map error for', doc)
-
-      if (doc.shipment._id.split('.').length == 1) //inventory only
-        emit(doc.drug.generics[i].name.toLowerCase())
-    }
   }
-}
-
-
-function addGenericName(drug) {
-  drug.generic = drug.generics.map(generic => generic.name+" "+generic.strength).join(', ')+' '+drug.form
 }
 
 addMethod('user', localMethod.get)
