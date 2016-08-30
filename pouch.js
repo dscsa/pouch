@@ -54,7 +54,7 @@ var _toDoc = {
       _rev:doc._rev,
       createdAt:doc.createdAt,
       verifiedAt:doc.verifiedAt,
-      history:doc.history,
+      next:doc.next,
       exp:{from:doc.exp.from, to:doc.exp.to},
       qty:{from:doc.qty.from, to:doc.qty.to},
       location:doc.location,
