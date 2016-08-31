@@ -267,6 +267,12 @@ var session = {
   delete(name, path, body, opts) {
     return ajax(path, 'delete', body, opts).then(_ => {
       return Promise.all(resources.map(function(name) {
+        //keep these two for the next user's session
+        if (name == 'account' || name == 'drug') {
+          //Check if synced because a refresh on logout
+          return db[name]._sync && db[name]._sync.cancel()
+        }
+
         //Destroying will stop these from syncing as well
         return db[name].destroy().then(function() {
           delete db[name]
