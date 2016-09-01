@@ -427,7 +427,7 @@ function buildIndex(name) {
 
         var start  = Date.now()
         db[name].find({selector:{[field]:true}, limit:0}).then(function() {
-          console.log('Mango index', name+'/'+field, 'built in', Date.now() - start)
+          //console.log('Mango index', name+'/'+field, 'built in', Date.now() - start)
         })
       })
     }
@@ -449,7 +449,7 @@ function buildIndex(name) {
 
       var start = Date.now()
       return db[name].query(name+'/'+index, {limit:0}).then(function() {
-        console.log('Custom index', name+'/'+index, 'built in', Date.now() - start)
+        //console.log('Custom index', name+'/'+index, 'built in', Date.now() - start)
       })
     }
   })
