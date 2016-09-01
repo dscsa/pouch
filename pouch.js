@@ -182,7 +182,7 @@ var localMethod = {
   },
 
   put(name, path, body) {
-    return db[name].put(toDoc(name, body, true)).then(res => updateRev(res, body))
+    return db[name].put(toDoc(name, body, true)).then(res => updateProps(res, body))
   },
 
   //Delete doesn't have a body to update
@@ -204,7 +204,7 @@ var remoteMethod = {
   },
 
   put(name, path, body) {
-    return ajax(path, 'put', toDoc(name, body, true)).then(res => updateRev(res, body))
+    return ajax(path, 'put', toDoc(name, body, true)).then(res => updateProps(res, body))
   },
 
   //Delete usually doesn't need to update anything unless it's like transactions/verified
@@ -275,11 +275,6 @@ var session = {
       }))
     })
   }
-}
-
-function updateRev(res, body) {
-  body._rev = res.rev || res._rev
-  return res
 }
 
 //Deep (recursive) merge that keeps references intact to be compatiable with excludeProperties
@@ -511,5 +506,5 @@ addMethod('transaction/verified', remoteMethod.delete)
 
 addMethod('drug', localMethod.get)
 addMethod('drug', remoteMethod.post)
-addMethod('drug', localMethod.put)
+addMethod('drug', remoteMethod.put) //since generic name is now preset
 addMethod('drug', localMethod.delete)
