@@ -218,6 +218,7 @@ var remoteMethod = {
       var doc = {docs:toDoc(name, body, true)}
       path += '/_bulk_docs',
       opts.timeout = 1000 * body.length //one second per record
+      console.log('bulk docs timeout', 1000 * body.length)
     } else {
       var doc = toDoc(name, body, true)
     }
