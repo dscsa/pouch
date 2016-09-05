@@ -380,6 +380,7 @@ resources.forEach(createDatabase)
 function createDatabase(r) {
 
   db[r] = db[r] || new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
+  console.log('db._sync', r, db[r]._sync)
   db[r].remote = db[r].remote || new PouchDB('http:'+BASE_URL+r)
   db[r].remote.info().then(info => db[r].remote.update_seq = info.update_seq)
 
@@ -391,6 +392,8 @@ function createDatabase(r) {
 }
 
 function sync(r, live) {
+ db[r]._sync && db[r]._sync.cancel() && console.log('canceling sync')
+ console.log('syncing', r, 'live', live)
  return db[r]._sync = db[r].sync(db[r].remote, {live:live, retry:true, filter:doc => doc._id.indexOf('_design') !== 0 })
 }
 
