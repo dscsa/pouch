@@ -270,6 +270,7 @@ var session = {
       return Promise.all(resources.map(function(name) {
         //Destroying will stop these from syncing as well
         return db[name].destroy().then(function() {
+          db[name]._sync && db[name]._sync.cancel()
           delete db[name]
           return createDatabase(name)
         })
@@ -379,9 +380,9 @@ function drugNdc9Find(ndc9, len) {
 resources.forEach(createDatabase)
 function createDatabase(r) {
 
-  db[r] = db[r] || new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
+  db[r] = new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
   console.log('db._sync', r, db[r]._sync)
-  db[r].remote = db[r].remote || new PouchDB('http:'+BASE_URL+r)
+  db[r].remote = new PouchDB('http:'+BASE_URL+r)
   db[r].remote.info().then(info => db[r].remote.update_seq = info.update_seq)
 
   buildIndex(r)
