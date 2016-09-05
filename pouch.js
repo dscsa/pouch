@@ -243,7 +243,7 @@ var session = {
       }
 
       loading.syncing = resources.map(function(name) {
-        loading.progress.update_seq += db[name].remote.update_seq
+        loading.progress.update_seq += remote[name].update_seq
         return sync(name).on('change', info => {
           console.log('change', name)
           loading.progress[name] = info.change.last_seq
@@ -271,7 +271,7 @@ var session = {
       return Promise.all(resources.map(function(name) {
         //Destroying will stop these from syncing as well
         return db[name].destroy().then(function() {
-          db[name]._sync && db[name]._sync.cancel()
+          sync[name] && sync[name].cancel()
           delete db[name]
           return createDatabase(name)
         })
@@ -382,9 +382,9 @@ resources.forEach(createDatabase)
 function createDatabase(r) {
 
   db[r] = new PouchDB(r, {auto_compaction:true}) //this currently recreates unsynced dbs (accounts, drugs) but seems to be working.  TODO change to just resync rather than recreate
-  console.log('db._sync', r, db[r]._sync)
-  db[r].remote = new PouchDB('http:'+BASE_URL+r)
-  db[r].remote.info().then(info => db[r].remote.update_seq = info.update_seq)
+  console.log('sync[r]', r, sync[r])
+  remote[r] = new PouchDB('http:'+BASE_URL+r)
+  remote[r].info().then(info => remote[r].update_seq = info.update_seq)
 
   buildIndex(r)
 
@@ -393,10 +393,13 @@ function createDatabase(r) {
   })
 }
 
+var sync   = {}
+var remote = {}
+
 function sync(r, live) {
- db[r]._sync && db[r]._sync.cancel() && console.log('canceling sync')
+ sync[r] && sync[r].cancel() && console.log('canceling sync')
  console.log('syncing', r, 'live', live)
- return db[r]._sync = db[r].sync(db[r].remote, {live, retry:true, filter:doc => doc._id.indexOf('_design') !== 0 })
+ return sync[r] = db[r].sync(remote[r], {live, retry:true, filter:doc => doc._id.indexOf('_design') !== 0 })
 }
 
 //Build all the type's indexes
