@@ -245,6 +245,7 @@ var session = {
       loading.syncing = resources.map(function(name) {
         loading.progress.update_seq += db[name].remote.update_seq
         return sync(name).on('change', info => {
+          console.log('change', name)
           loading.progress[name] = info.change.last_seq
           loading.progress.last_seq = resources.reduce((a, name)=> a+(loading.progress[name] || 0), 0)
         })
@@ -395,7 +396,7 @@ function createDatabase(r) {
 function sync(r, live) {
  db[r]._sync && db[r]._sync.cancel() && console.log('canceling sync')
  console.log('syncing', r, 'live', live)
- return db[r]._sync = db[r].sync(db[r].remote, {live:false, retry:true, filter:doc => doc._id.indexOf('_design') !== 0 })
+ return db[r]._sync = db[r].sync(db[r].remote, {live, retry:true, filter:doc => doc._id.indexOf('_design') !== 0 })
 }
 
 //Build all the type's indexes
