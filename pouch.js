@@ -4,6 +4,8 @@ var BASE_URL = '//'+window.location.hostname+'/'
 var resources = ['drug', 'account', 'user', 'shipment'] //Don't sync transaction to increase installation speed
 var db        = {}
 var loading   = {}
+var sync   = {}
+var remote = {}
 
 //Client
 //this.db.users.get({email:adam@sirum.org})
@@ -392,9 +394,6 @@ function createDatabase(r) {
     session && setTimeout(_ => sync(r, true), 5000) //Kiah's laptop was maxing out on TCP connections befor app-bundle loaded.  Wait on _changes into static assets can load
   })
 }
-
-var sync   = {}
-var remote = {}
 
 function sync(r, live) {
  sync[r] && sync[r].cancel() && console.log('canceling sync')
