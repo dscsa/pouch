@@ -15,15 +15,18 @@ var remote    = {}
 //this.db.users.session.post({})
 //this.db.users.email.post({})
 function ajax(url, method, body, opts = {}) {
-  opts.url     = BASE_URL+url
-  opts.method  = method
-  opts.body    = body
-  opts.json    = true
-  opts.timeout = opts.timeout || 10000
-  return new Promise(function(resolve, reject) {
-    PouchDB.ajax(opts, function(err, res) {
-      if (err) reject(err)
-      else resolve(res)
+
+  return fetch(BASE_URL+url, {
+  	method:method,
+    mode:'cors',
+  	headers:opts.headers,
+    timeout:opts.timeout,
+    credentials:"include",
+    body:JSON.stringify(body)
+  }).then(res => {
+    return res.json().then(body => {
+      if (res.status >= 200 && res.status < 400) return body
+      throw {body, headers:res.headers, status:res.status, statusText:res.statusText, url:res.url}
     })
   })
 }
