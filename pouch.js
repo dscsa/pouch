@@ -250,7 +250,6 @@ var session = {
       loading.syncing = resources.map(function(name) {
         loading.progress.update_seq += remote[name].update_seq
         return sync(name).on('change', info => {
-          console.log('change', name)
           loading.progress[name] = info.change.last_seq
           loading.progress.last_seq = resources.reduce((a, name)=> a+(loading.progress[name] || 0), 0)
         })
