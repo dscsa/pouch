@@ -397,7 +397,7 @@ function createDatabase(r) {
 
 function sync(r, live) {
  console.log('syncing', r, 'live', live)
- return synced[r] = db[r].sync(remote[r], {live, retry:true, filter:doc => doc._id.indexOf('_design') !== 0 })
+ return synced[r] = db[r].sync(remote[r], {live, retry:true })
 }
 
 //Build all the type's indexes
