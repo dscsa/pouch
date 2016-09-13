@@ -16,7 +16,7 @@ var remote    = {}
 //this.db.users.email.post({})
 function ajax(url, method, body, opts = {}) {
 
-  return fetch(BASE_URL+url, {
+  return fetch(BASE_URL.replace(/:\d{2,4}/, '')+url, {
   	method:method,
     mode:'cors',
   	headers:opts.headers,
