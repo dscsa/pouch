@@ -192,7 +192,7 @@ var localMethod = {
 
   //Delete doesn't have a body to update
   delete(name, path, body) {
-    return db[path].remove(body)
+    return db[path].remove(body).then(res => updateProps(res, body))
   }
 }
 
