@@ -9472,8 +9472,7 @@ function fetchRequest(options, callback) {
       headers.set(key, options.headers[key]);
     }
   });
-  console.log('pouch fetch', options.url, options.url.replace(/\/([^/]+)\/(_local|_changes)/, ':5984/$1/$2'))
-  wrappedPromise = wrappedFetch(options.url.replace(/\/([^/]+)\/(_local|_changes)/, ':5984/$1/$2'), fetchOptions);
+  wrappedPromise = wrappedFetch(options.url.replace(/\/([^/]+)\/(_local|_changes|[\d\-]{9,10})/, ':5984/$1/$2?filter=role/role'), fetchOptions);
 
   if (options.timeout > 0) {
     timer = setTimeout(function () {
@@ -9547,8 +9546,7 @@ function xhRequest(options, callback) {
   }
 
   try {
-    console.log('pouch xhr', options.url, options.url.replace(/\/([^/]+)\/(_local|_changes)/, ':5984/$1/$2'))
-    xhr.open(options.method, options.url.replace(/\/([^/]+)\/(_local|_changes)/, ':5984/$1/$2'));
+    xhr.open(options.method, options.url.replace(/\/([^/]+)\/(_local|_changes|[\d\-]{9,10})/, ':5984/$1/$2?filter=role/role'));
   } catch (exception) {
     return callback(new Error(exception.name || 'Url is invalid'));
   }
