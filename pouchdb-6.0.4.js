@@ -9472,7 +9472,7 @@ function fetchRequest(options, callback) {
       headers.set(key, options.headers[key]);
     }
   });
-
+  console.log('pouch fetch', options.url, options.url.replace(/\/([^/]+)\/_local/, ':5984/$1/_local'))
   wrappedPromise = wrappedFetch(options.url.replace(/\/([^/]+)\/_local/, ':5984/$1/_local'), fetchOptions);
 
   if (options.timeout > 0) {
@@ -9547,6 +9547,7 @@ function xhRequest(options, callback) {
   }
 
   try {
+    console.log('pouch xhr', options.url, options.url.replace(/\/([^/]+)\/_local/, ':5984/$1/_local'))
     xhr.open(options.method, options.url.replace(/\/([^/]+)\/_local/, ':5984/$1/_local'));
   } catch (exception) {
     return callback(new Error(exception.name || 'Url is invalid'));
