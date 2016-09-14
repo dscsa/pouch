@@ -9472,7 +9472,7 @@ function fetchRequest(options, callback) {
       headers.set(key, options.headers[key]);
     }
   });
-  wrappedPromise = wrappedFetch(options.url.replace(/\/([^/]+)\/(_local|_changes|[\d\-]{9,10})/, ':5984/$1/$2?filter=role/role'), fetchOptions);
+  wrappedPromise = wrappedFetch(options.url.replace(/\/([^/]+)\/(_local|_changes|[\d\-]{9,10})(.*)/, ':5984/$1/$2$3&filter=role/role'), fetchOptions);
 
   if (options.timeout > 0) {
     timer = setTimeout(function () {
@@ -9546,7 +9546,7 @@ function xhRequest(options, callback) {
   }
 
   try {
-    xhr.open(options.method, options.url.replace(/\/([^/]+)\/(_local|_changes|[\d\-]{9,10})/, ':5984/$1/$2?filter=role/role'));
+    xhr.open(options.method, options.url.replace(/\/([^/]+)\/(_local|_changes|[\d\-]{9,10})(.*)/, ':5984/$1/$2$3&filter=role/role'));
   } catch (exception) {
     return callback(new Error(exception.name || 'Url is invalid'));
   }
