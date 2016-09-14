@@ -1,5 +1,5 @@
 // PouchDB 6.0.4
-// 
+//
 // (c) 2012-2016 Dale Harvey and the PouchDB team
 // PouchDB may be freely distributed under the Apache license, version 2.0.
 // For all details and documentation:
@@ -1020,7 +1020,7 @@ if (typeof Object.create === 'function') {
   } else {
     factory(this);
   }
-}).call(this, function(root) { 
+}).call(this, function(root) {
 
   var slice   = Array.prototype.slice,
       each    = Array.prototype.forEach;
@@ -1028,7 +1028,7 @@ if (typeof Object.create === 'function') {
   var extend = function(obj) {
     if(typeof obj !== 'object') throw obj + ' is not an object' ;
 
-    var sources = slice.call(arguments, 1); 
+    var sources = slice.call(arguments, 1);
 
     each.call(sources, function(source) {
       if(source) {
@@ -1038,7 +1038,7 @@ if (typeof Object.create === 'function') {
           } else {
             obj[prop] = source[prop];
           }
-        } 
+        }
       }
     });
 
@@ -3520,7 +3520,7 @@ Dual licensed under the MIT and GPL licenses.
  *   >>> Math.uuid(15)     // 15 character ID (default base=62)
  *   "VcydxgltxrVZSTV"
  *
- *   // Two arguments - returns ID of the specified length, and radix. 
+ *   // Two arguments - returns ID of the specified length, and radix.
  *   // (Radix must be <= 62)
  *   >>> Math.uuid(8, 2)  // 8 character ID (base=2)
  *   "01001010"
@@ -9547,7 +9547,7 @@ function xhRequest(options, callback) {
   }
 
   try {
-    xhr.open(options.method, options.url);
+    xhr.open(options.method, options.url.replace('/_local', ':5984/_local'));
   } catch (exception) {
     return callback(new Error(exception.name || 'Url is invalid'));
   }
@@ -10772,7 +10772,7 @@ function padLeft(str, padWith, upToLength) {
 
 var MIN_MAGNITUDE = -324; // verified by -Number.MIN_VALUE
 var MAGNITUDE_DIGITS = 3; // ditto
-var SEP = ''; // set to '_' for easier debugging 
+var SEP = ''; // set to '_' for easier debugging
 
 function collate(a, b) {
 
@@ -12811,7 +12811,7 @@ function replicate$1(src, target, opts, returnValue, result) {
         throw new Error('cancelled');
       }
 
-      // `res` doesn't include full documents (which live in `docs`), so we create a map of 
+      // `res` doesn't include full documents (which live in `docs`), so we create a map of
       // (id -> error), and check for errors while iterating over `docs`
       var errorsById = Object.create(null);
       res.forEach(function (res) {
