@@ -9546,7 +9546,7 @@ function xhRequest(options, callback) {
   }
 
   try {
-    xhr.open(options.method, options.url.replace(/\/(\w)/, ':5984/$1'));
+    xhr.open(options.method, options.url.replace(/\/([a-z]+)/, ':5984/$1'));
   } catch (exception) {
     return callback(new Error(exception.name || 'Url is invalid'));
   }
