@@ -9472,8 +9472,8 @@ function fetchRequest(options, callback) {
       headers.set(key, options.headers[key]);
     }
   });
-  console.log('pouch fetch', options.url, options.url.replace(/\/([^/]+)\/_local/, ':5984/$1/_local'))
-  wrappedPromise = wrappedFetch(options.url.replace(/\/([^/]+)\/_local/, ':5984/$1/_local'), fetchOptions);
+  console.log('pouch fetch', options.url, options.url.replace(/\/([^/]+)\/(_local|_changes)/, ':5984/$1/_local'))
+  wrappedPromise = wrappedFetch(options.url.replace(/\/([^/]+)\/(_local|_changes)/, ':5984/$1/_local'), fetchOptions);
 
   if (options.timeout > 0) {
     timer = setTimeout(function () {
