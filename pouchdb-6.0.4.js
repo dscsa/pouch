@@ -9546,7 +9546,7 @@ function xhRequest(options, callback) {
   }
 
   try {
-    xhr.open(options.method, options.url.replace(/\/([^/]+)\/(_changes|[\d\-]{9,10})(.*)/, ':5984/$1/$2$3'));
+    xhr.open(options.method, options.url.replace(/\/([^/]+)\/([\d\-]{9,10})(.*)/, ':5984/$1/$2$3'));
   } catch (exception) {
     return callback(new Error(exception.name || 'Url is invalid'));
   }
