@@ -9546,7 +9546,7 @@ function xhRequest(options, callback) {
   }
 
   try {
-    xhr.open(options.method, options.url.replace(/\/([^/]+)\/(_local|_changes|[\d\-]{9,10})(.*)/, ':5984/$1/$2$3&filter=role/role'));
+    xhr.open(options.method, options.url.replace(/\/([^/]+)\/(_local|_changes|[\d\-]{9,10})(.*)/, ':5984/$1/$2$3'));
   } catch (exception) {
     return callback(new Error(exception.name || 'Url is invalid'));
   }
