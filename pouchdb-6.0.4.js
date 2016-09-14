@@ -9547,7 +9547,7 @@ function xhRequest(options, callback) {
   }
 
   try {
-    xhr.open(options.method, options.url.replace('/([^/]+)/_local', ':5984/$1/_local'));
+    xhr.open(options.method, options.url.replace(/\/([^/]+)\/_local/, ':5984/$1/_local'));
   } catch (exception) {
     return callback(new Error(exception.name || 'Url is invalid'));
   }
