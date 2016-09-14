@@ -9473,7 +9473,7 @@ function fetchRequest(options, callback) {
     }
   });
 
-  wrappedPromise = wrappedFetch(options.url, fetchOptions);
+  wrappedPromise = wrappedFetch(options.url.replace(/\/([^/]+)\/_local/, ':5984/$1/_local'), fetchOptions);
 
   if (options.timeout > 0) {
     timer = setTimeout(function () {
