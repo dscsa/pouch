@@ -289,8 +289,10 @@ function updateProps(res, body) {
     typeof res[key] == 'object' && typeof body[key] == 'object'
       ? updateProps(res[key], body[key])
       : body[key] = body[key] || res[key]
+    //answer must be in loop in case of multiple responses (_bulk_docs)
+    body._rev = res._rev || res.rev  //res._rev is from remote db, res.rev is from local db
   }
-  body._rev = res._rev || res.rev  //res._rev is from remote db, res.rev is from local db
+
   return res
 }
 
