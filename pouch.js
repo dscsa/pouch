@@ -26,7 +26,7 @@ function ajax(url, method, body, opts = {}) {
   }).then(res => {
     return res.json().then(body => {
       if (res.status >= 200 && res.status < 400) return body
-      throw {body, headers:res.headers, status:res.status, reason:res.statusText, url:res.url}
+      throw {body, headers:res.headers, status:res.status, reason:body.reason || res.statusText, url:res.url}
     })
   })
 }
