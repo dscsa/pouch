@@ -307,74 +307,72 @@ var queries = {
   },
   drug:{
     generic(generic) {
-      var tokens = generic.toLowerCase().replace('.', '\\.').split(/, |[, ]/g)
-      var opts   = {startkey:tokens[0], endkey:tokens[0]+'\uffff', include_docs:true}
-      return db.drug.query('drug/generic', opts).then(function(res) {
-        //Use lookaheads to search for each word separately (no order)
-        var regex  = RegExp('(?=.*'+tokens.join(')(?=.*')+')', 'i')
+      var start = Date.now()
 
-        let result = []
-        for (let row of res.rows) {
-          if ( ! tokens[1] || regex.test(row.doc.generic))
-            result.push(row.doc)
-        }
+      if (generic.length < 3)
+        return Promise.resolve([])
 
-        return result
+      var terms = generic.toLowerCase().replace('.', '\\.').split(/, |[, ]/g)
+      var regex = RegExp('(?=.*'+terms.join(')(?=.*( |0)')+')', 'i') //Use lookaheads to search for each word separately (no order).  Even the first term might be the 2nd generic
+
+      //We do caching here if user is typing in ndc one digit at a time since PouchDB's speed varies a lot (50ms - 2000ms)
+      if (terms[0].startsWith(this._term))
+        return this._drugs.then(drugs => drugs.filter(drug => {
+          return regex.test(drug.generic)
+        }))
+
+      this._term = terms[0]
+      var opts   = {startkey:terms[0], endkey:terms[0]+'\uffff', include_docs:true}
+
+      return this._drugs = db.drug.query('drug/generic', opts).then(res => {
+        console.log('query returned', res.rows.length, 'rows and took', Date.now() - start)
+        return res.rows.map(row => row.doc)
       })
     },
 
+    //For now we make this function stateful (using "this") to cache results
     ndc(ndc) {
-      var term = ndc.replace(/-/g, '')
+      var start = Date.now()
+      var term  = ndc.replace(/-/g, '')
+
+      if (term.length < 3)
+        return Promise.resolve([])
 
       //This is a UPC barcode ('3'+10 digit upc+checksum).
       if (term.length == 12 && term[0] == '3')
         term = term.slice(1, -1)
 
-      //Full 11 digit NDC
-      if (term.length == 11)
-        return drugNdc9Find(term, 9).then(pkgCode)
+      //We do caching here if user is typing in ndc one digit at a time since PouchDB's speed varies a lot (50ms - 2000ms)
+      if (term.startsWith(this._term))
+        return this._drugs.then(drugs => drugs.filter(drug => {
 
-      //Full 10 digit UPC
-      if (term.length == 10)
-        return drugUpcFind(term, 9).then(drugs => drugs.length ? drugs : drugUpcFind(term, 8)).then(pkgCode)
+          if (term.length > 8) {
+            var ndc9 = '^'+drug.ndc9+'(\\d{2})$'
+            var upc  = '^'+drug.upc+'(\\d{'+(10 - drug.upc.length)+'})$'
+            var pkg  = term.match(RegExp(ndc9+'|'+upc))
 
-      //If 9 digit or >12 digit, user is likely including a 1 or 2 digit package code with an exact NDC,
-      if (term.length > 8)
-        return drugNdc9Find(term, 9).then(drugs => drugs.length ? drugs : drugUpcFind(term, 8)).then(pkgCode)
+            if (pkg)
+              return drug.pkg = '-' + (pkg[1] || pkg[2])
+          }
+          drug.pkg = ''
+          return drug.ndc9.startsWith(term) || drug.upc.startsWith(term)
+        }))
 
-      //8 or less digits means we have a inexact search which could be UPC or NDC
-      var upc  = db.drug.find({selector:{ upc:{$gte:term, $lt:term+'\uffff'}}, limit:200})
-      var ndc9 = db.drug.find({selector:{ndc9:{$gte:term, $lt:term+'\uffff'}}, limit:200})
+      var upc  = db.drug.find({selector:{ upc:{$gte:term, $lt:term+'\uffff'}}})
+      var ndc9 = db.drug.find({selector:{ndc9:{$gte:term, $lt:term+'\uffff'}}})
 
-      return Promise.all([upc, ndc9]).then(deduplicate)
+      this._term = term
+      return this._drugs = Promise.all([upc, ndc9]).then(results => {
+        console.log('query returned', results[0].docs.length, 'rows and took', Date.now() - start)
+        //TODO add in ES6 destructuing
+        let deduped = {}
+        for (let drug of results[0].docs.concat(results[1].docs))
+          deduped[drug._id] = drug
 
-      function pkgCode(drugs) {
-        //If found, include the package code in the result
-        return drugs.map(drug => {
-          var ndc9  = '^'+drug.ndc9+'(\\d{1,2})$'
-          var upc   = '^'+drug.upc+'(\\d{1,2})$'
-          var match = term.match(RegExp(ndc9+'|'+upc))
-          if (match)
-            drug.pkg = match[1] || match[2] || match[3] || ''
-
-          return drug
-        })
-      }
-      //To avoid duplicates in upc search, filter out where term is less than ndc9 labeler (no difference between upc an ndc9 here)
-      //and where upc is not 9 (no difference between ndc9 and upc when upc is length 9).
-      function deduplicate(results) {
-        return results[0].docs.filter(function(drug) { return drug.upc.length != 9 }).concat(results[1].docs)
-      }
+        return Object.values(deduped)
+      })
     }
   }
-}
-
-function drugUpcFind(upc, len) {
-  return db.drug.find({selector:{upc:upc.slice(0, len)}, limit:1}).then(res => toDoc('drug', res.docs))
-}
-
-function drugNdc9Find(ndc9, len) {
-  return db.drug.find({selector:{ndc9:ndc9.slice(0, len)}, limit:1}).then(res => toDoc('drug', res.docs))
 }
 
 //Create databases on load/refresh
