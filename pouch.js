@@ -363,13 +363,15 @@ var queries = {
 
       this._term = term
       return this._drugs = Promise.all([upc, ndc9]).then(results => {
-        console.log('query returned', results[0].docs.length, 'rows and took', Date.now() - start)
+
         //TODO add in ES6 destructuing
         let deduped = {}
         for (let drug of results[0].docs.concat(results[1].docs))
           deduped[drug._id] = drug
 
-        return Object.values(deduped)
+        deduped = Object.values(deduped)
+        console.log('query returned', deduped.length, 'rows and took', Date.now() - start)
+        return deduped
       })
     }
   }
