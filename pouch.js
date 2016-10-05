@@ -370,7 +370,7 @@ var queries = {
         for (let drug of results[0].docs.concat(results[1].docs))
           deduped[drug._id] = drug
 
-        deduped = Object.values(deduped)
+        deduped = Object.keys(deduped).map(key => deduped[key]) //Polyfill for Object.values
         console.log('query returned', deduped.length, 'rows and took', Date.now() - start)
         return deduped
       })
