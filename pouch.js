@@ -353,7 +353,7 @@ var queries = {
             var pkg  = term.match(RegExp(ndc9+'|'+upc))
 
             if (pkg)
-              return drug.pkg = '-' + (pkg[1] || pkg[2])
+              return drug.pkg = pkg[1] || pkg[2]
           }
           drug.pkg = ''
           return drug.ndc9.startsWith(term) || drug.upc.startsWith(term)
