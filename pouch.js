@@ -249,7 +249,8 @@ var session = {
       loading.syncing = resources.map(function(name) {
         loading.progress.update_seq += remote[name].update_seq
         return sync(name).on('change', info => {
-          loading.progress[name] = info.change.last_seq
+          //Change property is on db.sync, but not on db.replicate.from
+          loading.progress[name] = info.last_seq || info.change.last_seq
           loading.progress.last_seq = resources.reduce((a, name)=> a+(loading.progress[name] || 0), 0)
         })
         .then(function() {
@@ -399,7 +400,8 @@ function createDatabase(r) {
 
 function sync(r, live) {
  console.log('syncing', r, 'live', live)
- return synced[r] = db[r].sync(remote[r], {live, retry:true, filter:doc => doc._id.indexOf('_design') !== 0 })
+ let opts = {live, retry:true, filter:doc => doc._id.indexOf('_design') !== 0 }
+ return synced[r] = r == 'drug' ? db[r].replicate.from(remote[r], opts) : db[r].sync(remote[r], opts)
 }
 
 //Build all the type's indexes
