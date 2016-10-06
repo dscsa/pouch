@@ -331,6 +331,18 @@ var queries = {
       })
     },
 
+    addPkgCode(term, drug) {
+      var pkg, ndc9, upc
+      if (term.length > 8) {
+        ndc9 = '^'+drug.ndc9+'(\\d{2})$'
+        upc  = '^'+drug.upc+'(\\d{'+(10 - drug.upc.length)+'})$'
+        pkg  = term.match(RegExp(ndc9+'|'+upc))
+      }
+
+      drug.pkg = pkg ? pkg[1] || pkg[2] : ''
+      return drug
+    },
+
     //For now we make this function stateful (using "this") to cache results
     ndc(ndc) {
       var start = Date.now()
@@ -343,26 +355,20 @@ var queries = {
       if (term.length == 12 && term[0] == '3')
         term = term.slice(1, -1)
 
+      var ndc9 = term.slice(0, 9)
+      var upc  = term.slice(0, 8)
+
       //We do caching here if user is typing in ndc one digit at a time since PouchDB's speed varies a lot (50ms - 2000ms)
       if (term.startsWith(this._term))
         return this._drugs.then(drugs => drugs.filter(drug => {
-
-          if (term.length > 8) {
-            var ndc9 = '^'+drug.ndc9+'(\\d{2})$'
-            var upc  = '^'+drug.upc+'(\\d{'+(10 - drug.upc.length)+'})$'
-            var pkg  = term.match(RegExp(ndc9+'|'+upc))
-
-            if (pkg)
-              return drug.pkg = pkg[1] || pkg[2]
-          }
-          drug.pkg = ''
-          return drug.ndc9.startsWith(term) || drug.upc.startsWith(term)
+          this.addPkgCode(term, drug)
+          return drug.ndc9.startsWith(ndc9) || drug.upc.startsWith(upc)
         }))
 
-      var upc  = db.drug.find({selector:{ upc:{$gte:term, $lt:term+'\uffff'}}})
-      var ndc9 = db.drug.find({selector:{ndc9:{$gte:term, $lt:term+'\uffff'}}})
-
       this._term = term
+      ndc9 = db.drug.find({selector:{ndc9:{$gte:ndc9, $lt:ndc9+'\uffff'}}})
+      upc  = db.drug.find({selector:{ upc:{$gte:upc, $lt:upc+'\uffff'}}})
+
       return this._drugs = Promise.all([upc, ndc9]).then(results => {
 
         //TODO add in ES6 destructuing
@@ -370,7 +376,7 @@ var queries = {
         for (let drug of results[0].docs.concat(results[1].docs))
           deduped[drug._id] = drug
 
-        deduped = Object.keys(deduped).map(key => deduped[key]) //Polyfill for Object.values
+        deduped = Object.keys(deduped).map(key => this.addPkgCode(term, deduped[key]))
         console.log('query returned', deduped.length, 'rows and took', Date.now() - start)
         return deduped
       })
