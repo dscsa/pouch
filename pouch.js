@@ -359,11 +359,15 @@ var queries = {
       var upc  = term.slice(0, 8)
 
       //We do caching here if user is typing in ndc one digit at a time since PouchDB's speed varies a lot (50ms - 2000ms)
-      if (term.startsWith(this._term))
+      if (term.startsWith(this._term)) {
+        console.log('FILTER', 'ndc9', ndc9, 'upc', upc, 'term', term, 'this.term', this.term)
         return this._drugs.then(drugs => drugs.filter(drug => {
           this.addPkgCode(term, drug)
           return drug.ndc9.startsWith(ndc9) || drug.upc.startsWith(upc)
         }))
+      }
+
+      console.log('QUERY', 'ndc9', ndc9, 'upc', upc, 'term', term, 'this.term', this.term)
 
       this._term = term
       ndc9 = db.drug.find({selector:{ndc9:{$gte:ndc9, $lt:ndc9+'\uffff'}}})
