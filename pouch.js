@@ -363,7 +363,8 @@ var queries = {
         console.log('FILTER', 'ndc9', ndc9, 'upc', upc, 'term', term, 'this.term', this.term)
         return this._drugs.then(drugs => drugs.filter(drug => {
           this.addPkgCode(term, drug)
-          return drug.ndc9.startsWith(ndc9) || drug.upc.startsWith(upc)
+          //If upc.length = 9 then the ndc9 code should yield a match, otherwise the upc  which is cutoff at 8 digits will have false positives
+          return drug.ndc9.startsWith(ndc9) || (drug.upc.length != 9 && drug.upc.startsWith(upc))
         }))
       }
 
@@ -373,12 +374,16 @@ var queries = {
       ndc9 = db.drug.find({selector:{ndc9:{$gte:ndc9, $lt:ndc9+'\uffff'}}})
       upc  = db.drug.find({selector:{ upc:{$gte:upc, $lt:upc+'\uffff'}}})
 
+      //TODO add in ES6 destructuing
       return this._drugs = Promise.all([upc, ndc9]).then(results => {
 
-        //TODO add in ES6 destructuing
         let deduped = {}
-        for (let drug of results[0].docs.concat(results[1].docs))
-          deduped[drug._id] = drug
+        for (let drug of results[0].docs)
+          if (drug.upc.length != 9) //If upc.length = 9 then the ndc9 code should yield a match, otherwise the upc which is cutoff at 8 digits will have false positives
+            deduped[drug._id] = drug
+
+        for (let drug of results[1].docs)
+            deduped[drug._id] = drug
 
         deduped = Object.keys(deduped).map(key => this.addPkgCode(term, deduped[key]))
         console.log('query returned', deduped.length, 'rows and took', Date.now() - start)
