@@ -364,7 +364,7 @@ var queries = {
         return this._drugs.then(drugs => drugs.filter(drug => {
           this.addPkgCode(term, drug)
           //If upc.length = 9 then the ndc9 code should yield a match, otherwise the upc  which is cutoff at 8 digits will have false positives
-          return drug.ndc9.startsWith(ndc9) || (drug.upc.length != 9 && drug.upc.startsWith(upc))
+          return drug.ndc9.startsWith(ndc9) || (drug.upc.length != 9 && term.length != 11 && drug.upc.startsWith(upc))
         }))
       }
 
@@ -379,7 +379,7 @@ var queries = {
 
         let deduped = {}
         for (let drug of results[0].docs)
-          if (drug.upc.length != 9) //If upc.length = 9 then the ndc9 code should yield a match, otherwise the upc which is cutoff at 8 digits will have false positives
+          if (drug.upc.length != 9 && term.length != 11) //If upc.length = 9 then the ndc9 code should yield a match, otherwise the upc which is cutoff at 8 digits will have false positives
             deduped[drug._id] = drug
 
         for (let drug of results[1].docs)
