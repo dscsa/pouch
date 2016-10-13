@@ -322,7 +322,6 @@ var queries = {
     }
   },
   drug:{
-
     generic(generic) {
       var tokens = generic.toLowerCase().replace('.', '\\.').split(/, |[, ]/g)
       var opts   = {startkey:tokens[0], endkey:tokens[0]+'\uffff', include_docs:true}
