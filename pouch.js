@@ -6,7 +6,7 @@ var db        = {}
 var loading   = {}
 var synced    = {}
 var remote    = {}
-
+var finishedIndex = false
 //Client
 //this.db.users.get({email:adam@sirum.org})
 //this.db.users.post({})
@@ -231,6 +231,21 @@ var remoteMethod = {
   }
 }
 
+var drugIsIndexed = {
+  get() {
+    let myPromise = new Promise(function(resolve,reject){
+      let loop = setInterval(_ => {
+        if(finishedIndex){
+           resolve(true)
+           clearInterval(loop)
+         }
+      },100)
+    })
+    return myPromise
+  },
+}
+
+
 var session = {
   get() {
      let AuthUser = document.cookie && document.cookie.match(/AuthUser=([^;]+)/)
@@ -305,6 +320,7 @@ var queries = {
     }
   },
   drug:{
+
     generic(generic) {
       var tokens = generic.toLowerCase().replace('.', '\\.').split(/, |[, ]/g)
       var opts   = {startkey:tokens[0], endkey:tokens[0]+'\uffff', include_docs:true}
@@ -434,8 +450,9 @@ function buildIndex(name) {
         }
 
         var start  = Date.now()
-        db[name].find({selector:{[field]:true}, limit:0}).then(function() {
-          //console.log('Mango index', name+'/'+field, 'built in', Date.now() - start)
+        db[name].find({selector:{[field]:true}, limit:0}).then(_=> {
+          console.log('Mango index', name+'/'+field, 'built in', Date.now() - start)
+          if(name == "drug") finishedIndex = true
         })
       })
     }
@@ -456,8 +473,9 @@ function buildIndex(name) {
       }
 
       var start = Date.now()
-      return db[name].query(name+'/'+index, {limit:0}).then(function() {
-        //console.log('Custom index', name+'/'+index, 'built in', Date.now() - start)
+      return db[name].query(name+'/'+index, {limit:0}).then(_=> {
+        console.log('Custom index', name+'/'+index, 'built in', Date.now() - start)
+        if(name == "drug") finishedIndex = true
       })
     }
   })
@@ -516,3 +534,4 @@ addMethod('drug', localMethod.get)
 addMethod('drug', remoteMethod.post)
 addMethod('drug', remoteMethod.put) //since generic name is now preset
 addMethod('drug', localMethod.delete)
+addMethod('drug/drugIsIndexed', drugIsIndexed.get)
