@@ -161,12 +161,15 @@ var localMethod = {
   get(name, path, body, opts) {
     if ( ! body) {//Polyfill for pouchdb-find null selector which returns everything if body is not specified
 
-      path == 'drug' //drug _id is NDC (number) which starts before _ alphabetically
-        ? opts.endkey   = '_design'
-        : opts.startkey = '_design\uffff'
-
       opts.include_docs = true
-      return db[name].allDocs(opts).then(docs => toDoc(name, docs.rows.map(doc => doc.doc)))
+      return db[name].allDocs(opts).then(res => {
+        let docs = []
+        for (let row of res.rows)
+          if ('_design' != row.id.slice(0, 7))
+            docs.push(row.doc)
+
+        return toDoc(name, docs)
+      })
     }
 
     //Quick get if _id is specified
