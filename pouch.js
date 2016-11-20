@@ -6,7 +6,7 @@ var db        = {}
 var loading   = {}
 var synced    = {}
 var remote    = {}
-
+var finishedIndex = false //used to communicate whether or not the database is synced and indexed
 //Client
 //this.db.users.get({email:adam@sirum.org})
 //this.db.users.post({})
@@ -234,6 +234,23 @@ var remoteMethod = {
   }
 }
 
+//Omar Added on Oct 13, allows to return a promise that waits on the drug database
+//To be indexed. Necessary for inventory, drug and shipment pages to keep people
+//from tryign to search before it can return results.
+var drugIsIndexed = {
+  get() {
+    return new Promise(function(resolve,reject){
+      let loop = setInterval(_ => { //keeps checking the "finishedIndex" variable, which is only updated when the database is synced
+        if(finishedIndex){
+           resolve(true)
+           clearInterval(loop)  //in order to stop the loop
+         }
+      },100)  //checks every 100ms, timing can be tweeked as needed
+    })
+  },
+}
+
+
 var session = {
   get() {
      let AuthUser = document.cookie && document.cookie.match(/AuthUser=([^;]+)/)
@@ -455,8 +472,9 @@ function buildIndex(name) {
         }
 
         var start  = Date.now()
-        db[name].find({selector:{[field]:true}, limit:0}).then(function() {
-          //console.log('Mango index', name+'/'+field, 'built in', Date.now() - start)
+        db[name].find({selector:{[field]:true}, limit:0}).then(_=> {
+          console.log('Mango index', name+'/'+field, 'built in', Date.now() - start)
+          if(name == "drug") finishedIndex = true
         })
       })
     }
@@ -477,8 +495,9 @@ function buildIndex(name) {
       }
 
       var start = Date.now()
-      return db[name].query(name+'/'+index, {limit:0}).then(function() {
-        //console.log('Custom index', name+'/'+index, 'built in', Date.now() - start)
+      return db[name].query(name+'/'+index, {limit:0}).then(_=> {
+        console.log('Custom index', name+'/'+index, 'built in', Date.now() - start)
+        if(name == "drug") finishedIndex = true
       })
     }
   })
@@ -537,3 +556,4 @@ addMethod('drug', localMethod.get)
 addMethod('drug', remoteMethod.post)
 addMethod('drug', remoteMethod.put) //since generic name is now preset
 addMethod('drug', localMethod.delete)
+addMethod('drug/drugIsIndexed', drugIsIndexed.get)
