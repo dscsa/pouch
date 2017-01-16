@@ -174,7 +174,7 @@ var localMethod = {
 
     //Quick get if _id is specified
     if (typeof body._id == 'string')
-      return db[name].get(body._id).then(doc => toDoc(name, [doc]))
+      return db[name].get(body._id).then(doc => toDoc(name, [doc])).catch(err => [])
 
     if (body.generic)
       return queries[name].generic(body.generic, opts)
