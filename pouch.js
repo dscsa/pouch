@@ -430,7 +430,7 @@ function createDatabase(r) {
 
   session.get().then(session => {
     setTimeout(_ => {
-      if ((r != 'account') == session) sync(r, true) //start syncing account before login so that the drawer on the public inventory page works.
+      if (session) sync(r, true)
     }, 5000) //Kiah's laptop was maxing out on TCP connections befor app-bundle loaded.  Wait on _changes into static assets can load
   })
 }
