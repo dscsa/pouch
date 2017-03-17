@@ -299,10 +299,7 @@ function pouchModel() {
 
   //Sets the value as calculated
   plugin.set = function(fn) {
-    const set = (doc, val, key, opts) => {
-      console.log('set', key, val, doc)
-      return Promise.resolve(fn.call(opts && opts.this, doc, val, key, opts)).then(val => dotNotation(doc, key, val))
-    }
+    const set = (doc, val, key, opts) => Promise.resolve(fn.call(opts && opts.this, doc, val, key, opts)).then(val => dotNotation(doc, key, val))
     return this._assert(set).withMessage('cannot be set. ${$error}')
   }
 

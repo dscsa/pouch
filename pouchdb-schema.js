@@ -61,7 +61,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
         .pattern(/^\d{10}$|^\d{10}\.\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{10}$/)
         .withMessage('must be a string in the format "account.from._id" or "account.from._id"."account.to._id"."new Date().toJSON()"')
       .ensure('verifiedAt').typeDateTime()
-        .custom(doc => (console.log('verifiedAt', doc.qty), doc.qty.from || doc.qty.to)).withMessage('cannot be set unless qty.from or qty.to is set')
+        .custom(doc => doc.qty.from || doc.qty.to).withMessage('cannot be set unless qty.from or qty.to is set')
         .custom(doc => doc.exp.from || doc.exp.to).withMessage('cannot be set unless exp.from or exp.to is set')
       .ensure('next').default(doc => []).typeArray()
         .custom(doc => ! doc.next.length || doc.verifiedAt)
@@ -114,9 +114,6 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
   }
 
   function transactionId() {
-    var milli  = new Date().toJSON()
-    milli = milli.replace('Z', microSecond()+'Z')
-    console.log('transactionId', milli)
-    return milli
+    return new Date().toJSON().replace('Z', microSecond()+'Z')
   }
 }
