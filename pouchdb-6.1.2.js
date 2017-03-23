@@ -3063,8 +3063,8 @@ function createError(error, reason) {
     if (reason !== undefined) {
       this.reason = reason;
     }
-
-    console.trace('CustomPouchErr Stack', reason)
+    //Adam addition
+    //console.trace('CustomPouchErr Stack', reason)
   }
   CustomPouchError.prototype = PouchError.prototype;
   return new CustomPouchError(reason);

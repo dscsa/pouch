@@ -1,5 +1,6 @@
 "use strict"
 
+let baseurl = 'http://localhost:80/'
 //TODO Authenticate users and replicate dbs on login
 
 //Browser Dependencies
@@ -18,45 +19,49 @@ let methods = {
       post(body) {
         return this.get().then(session => {
           if (session) return session //we are already logged in
-          body.phone = formatPhone(body.phone)
           return local.ajax({url:'user/session', method:'post', body})
         })
         .then(_ => {
           console.log('session.post', _)
           let loading = {
-            resources:Object.keys(schema),       //display a list of what is being worked on
-            progress:{update_seq:0, last_seq:0}  //allow for a progress bar
+            resources:dbs.slice(),       //display a list of what is being worked on
+            progress:{last_seq:0}  //allow for a progress bar
           }
 
-          //Give an array of promises that we can do Promise.all() to determine when done
-          loading.syncing = loading.resources.map(db => {
-            loading.progress.update_seq += remote[db].update_seq
-            return sync(db).on('change', info => {
-              console.log('pouch sync change event')
-              loading.progress[db] = info.last_seq || info.change.last_seq
-              loading.progress.last_seq = loading.resources.reduce((a, db)=> a+(loading.progress[db] || 0), 0)
-            })
-            .then(_ => {
-              console.log('db', db, 'synced')
-              //Since we are deleting out of order the original index will not work
-              loading.resources.splice(loading.resources.indexOf(db), 1)
-            })
-          })
+          return Promise.all(loading.resources.map(db => remote[db].info()))
+          .then(infos => {
 
-          //live syncing uses up a tcp connection with long-polling so wait until all db sync before going "live"
-          Promise.all(loading.syncing).then(_ => {
-            for (let db of loading.resources) sync(db, true)
-          })
+            loading.progress.update_seq = infos.reduce((sum, info) => sum+info.update_seq, 0)
 
-          return loading
+            //Give an array of promises that we can do Promise.all() to determine when done
+            loading.syncing = loading.resources.map(db => {
+              return sync(db)
+              .on('change', info => {
+                loading.progress.last_seq += info.docs_read <= 100 ? info.last_seq : info.docs.length
+                console.log('on change', db, loading.progress.update_seq, loading.progress.last_seq, info)
+              })
+              .then(_ => {
+                console.log('db', db, 'synced')
+                //Since we are deleting out of order the original index will not work
+                loading.resources.splice(loading.resources.indexOf(db), 1)
+              })
+            })
+
+            //live syncing uses up a tcp connection with long-polling so wait until all db sync before going "live"
+            Promise.all(loading.syncing).then(_ => {
+              for (let db of loading.resources) sync(db, true)
+            })
+
+            return loading
+          })
         })
       },
 
       //db.user.session.delete(email)
       delete() {
         return local.ajax({url:'user/session', method:'delete'}).then(_ => {
-          return Promise.all(Object.keys(schema).map(db => { //Destroying will stop these from syncing as well
-            return local[db].destroy().then(_ => delete local[db], createLocalDb(name))
+          return Promise.all(dbs.map(db => { //Destroying will stop these from syncing as well
+            return local[db].destroy().then(_ => local[db] = createLocalDb(db))
           }))
         })
       }
@@ -76,10 +81,11 @@ let methods = {
 }
 
 let schema = pouchSchema(pouchModel, micro, methods)
+let dbs    = Object.keys(schema).filter(db => db != 'transaction')
 let remote = {}
 let local  = {
   ajax(opts) {
-    opts.url = 'http://localhost:80/'+opts.url
+    opts.url = baseurl+opts.url
     return new Promise((resolve, reject) => {
       return remote.user._ajax(opts, (err, body) => {
         err ? reject(err) : resolve(body)
@@ -98,7 +104,7 @@ function createRemoteDb(name) {
   if (name == 'transaction') //transaction db is remote only so we need validation here
     PouchDB.plugin(schema[name])
 
-  return new PouchDB('http://localhost/'+name)
+  return new PouchDB(baseurl+name)
 }
 
 function createLocalDb(name) {
@@ -123,10 +129,6 @@ function micro() {
 function sync(db, live) {
   //Change property doesn't seem to work if we switch remote and local positions
   return local[db].replicate.from(remote[db], {live, retry:true})
-}
-
-function formatPhone(phone) {
-  return phone.replace(/[-.() ]/g, '')
 }
 
 window.pouchdbClient = local

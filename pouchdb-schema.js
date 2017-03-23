@@ -31,7 +31,6 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
     user:pouchModel()
       .ensure('_id').set(doc => doc.phone.replace(/[^\d]/g, '')).typeTel()
       .ensure('phone').required().typeTel()
-      .ensure('password').set(doc => null)
       .ensure('account._id').required().typeTel()
       .ensure('email').required().typeEmail()
       .ensure('name.first').required().typeString()
