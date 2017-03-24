@@ -51,7 +51,7 @@ function pouchModel() {
       if (typeof docOrId === 'string')
         return _prototype.remove.apply(this, arguments)
 
-      body._deleted = true
+      docOrId._deleted = true
       return save.apply(this, arguments)
     }
 
