@@ -71,5 +71,6 @@ function string(fn, lib) {
 
   //Regarding views/lib placement: http://couchdb-13.readthedocs.io/en/latest/1.1/commonjs/
   //however pouchdb doesn't support require() so we need to replace with actual functions
-  return fn.replace(/require\(["'](.*?)["']\)/g, (_, key) => '('+addFunction(lib[key])+')')
+  //needs to be recursive so if a dependency has require that get's replaced too
+  return fn.replace(/require\(["'](.*?)["']\)/g, (_, key) => '('+string(lib[key], lib)+')')
 }

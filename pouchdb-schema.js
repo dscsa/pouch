@@ -26,7 +26,8 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
       .ensure('ndc9').set(ndc9)
       .ensure('labeler').typeString().maxLength(40)
       .ensure('updatedAt').set(_ => new Date().toJSON())
-      .ensure('createdAt').default(_ => new Date().toJSON()),
+      .ensure('createdAt').default(_ => new Date().toJSON())
+      .methods(methods.drug),
 
     user:pouchModel()
       .ensure('_id').set(doc => doc.phone.replace(/[^\d]/g, '')).typeTel()
@@ -46,7 +47,8 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
       .ensure('account.from.name').required().typeString()
       .ensure('account.from._id').required().typeTel()
       .ensure('tracking').required().minLength(6)
-      .ensure('updatedAt').set(doc => new Date().toJSON()),
+      .ensure('updatedAt').set(doc => new Date().toJSON())
+      .methods(methods.shipment),
 
     transaction:pouchModel()
       .ensure('_deleted')
@@ -73,7 +75,8 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
       .ensure('exp.from').typeDateTime()
       .ensure('exp.to').typeDateTime()
       .ensure('location').pattern(/[A-Z]\d{2,3}|UNIT/)
-      .ensure('updatedAt').set(_ => new Date().toJSON()),
+      .ensure('updatedAt').set(_ => new Date().toJSON())
+      .methods(methods.transaction),
 
     account:pouchModel()
       .ensure('_id').set(doc => doc.phone.replace(/[^\d]/g, '')).typeTel()

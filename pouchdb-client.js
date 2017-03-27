@@ -77,6 +77,14 @@ let methods = {
         return local.ajax({url:'account/authorized', method:'delete', body:JSON.stringify(body)})
       }
     }
+  },
+
+  transaction:{
+    history:{
+      get(id) {
+        return local.ajax({url:`transaction/${id}/history`})
+      }
+    }
   }
 }
 
