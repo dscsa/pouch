@@ -1,6 +1,6 @@
 "use strict"
 
-let baseurl = 'http://localhost:80/'
+let baseurl = window.location.origin+'/'
 //TODO Authenticate users and replicate dbs on login
 
 //Browser Dependencies
