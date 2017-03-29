@@ -1,6 +1,9 @@
 "use strict"
+//Needs protocol not just // otherwise PouchDB._ajx does not get set
+//Don't include the port # since server will always be port 80
+let baseurl = window.location.protocol+'//'+window.location.hostname+'/'
+//console.log(baseurl)
 
-let baseurl = window.location.origin+'/'
 //TODO Authenticate users and replicate dbs on login
 
 //Browser Dependencies
@@ -22,7 +25,6 @@ let methods = {
           return local.ajax({url:'user/session', method:'post', body})
         })
         .then(_ => {
-          console.log('session.post', _)
           let loading = {
             resources:dbs.slice(),       //display a list of what is being worked on
             progress:{last_seq:0}  //allow for a progress bar
@@ -38,7 +40,7 @@ let methods = {
               return sync(db)
               .on('change', info => {
                 loading.progress.last_seq += info.docs_read <= 100 ? info.last_seq : info.docs.length
-                console.log('on change', db, loading.progress.update_seq, loading.progress.last_seq, info)
+                //console.log('on change', db, loading.progress.update_seq, loading.progress.last_seq, info)
               })
               .then(_ => {
                 console.log('db', db, 'synced')
