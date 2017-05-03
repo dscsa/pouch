@@ -25,6 +25,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
       .ensure('upc').set(doc => doc._id.replace('-', ''))
       .ensure('ndc9').set(ndc9)
       .ensure('labeler').typeString().maxLength(40)
+      .ensure('warning').typeString()
       .ensure('updatedAt').set(_ => new Date().toJSON())
       .ensure('createdAt').default(_ => new Date().toJSON())
       .methods(methods.drug),
