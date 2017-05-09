@@ -75,7 +75,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
       .ensure('exp').default(doc => Object()).typeObject()
       .ensure('exp.from').typeDateTime()
       .ensure('exp.to').typeDateTime()
-      .ensure('location').pattern(/[A-Z]\d{2,3}|UNIT/)
+      .ensure('bin').pattern(/[A-Z]\d{2,3}|UNIT/)
       .ensure('updatedAt').set(_ => new Date().toJSON())
       .methods(methods.transaction),
 
