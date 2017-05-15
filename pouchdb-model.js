@@ -36,24 +36,15 @@ function pouchModel() {
       PouchDB.prototype = _prototype
       adapter = _adapter
     })
-  //
+
     Object.assign(prototype, plugin._methods, {
       post:save,
       put:save,
-      remove,
       bulkDocs,
       _props:plugin._props
     })
 
     PouchDB.prototype = prototype
-
-    function remove(docOrId, optsOrRev, callback) {
-      if (typeof docOrId === 'string')
-        return _prototype.remove.apply(this, arguments)
-
-      docOrId._deleted = true
-      return save.apply(this, arguments)
-    }
 
     //Can't just do validation through bulk docs because we are want to modify the body argument
     //with the validate library - .set() and .default() - and pouchdb clones args to prevent
@@ -87,7 +78,7 @@ function pouchModel() {
 
     //Run validation before calling the super function
     function bulkDocs(body, options = {}, callback) {
-
+console.trace('bulkdocs 1')
       //Options is optional in pouchdb so check if it was left out
       if (typeof options == 'function') {
         callback = options
@@ -104,8 +95,13 @@ function pouchModel() {
         options.new_edits = body.new_edits
 
       return validate(body.docs || body, this._props, options).then(docs => {
+        console.trace('bulkdocs 2')
+
         if (options) delete options.this
-        const update = saved => updateDocs(body.docs || body, docs, saved)
+        const update = saved => {
+          console.trace('bulkdocs 3')
+          return updateDocs(body.docs || body, docs, saved)
+        }
         return _prototype.bulkDocs.call(this, validOnly(docs), options).then(update)
       })
       .then(resolve, callback)
