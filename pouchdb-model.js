@@ -78,7 +78,6 @@ function pouchModel() {
 
     //Run validation before calling the super function
     function bulkDocs(body, options = {}, callback) {
-console.trace('bulkdocs 1')
       //Options is optional in pouchdb so check if it was left out
       if (typeof options == 'function') {
         callback = options
@@ -95,11 +94,9 @@ console.trace('bulkdocs 1')
         options.new_edits = body.new_edits
 
       return validate(body.docs || body, this._props, options).then(docs => {
-        console.trace('bulkdocs 2')
 
         if (options) delete options.this
         const update = saved => {
-          console.trace('bulkdocs 3')
           return updateDocs(body.docs || body, docs, saved)
         }
         return _prototype.bulkDocs.call(this, validOnly(docs), options).then(update)
