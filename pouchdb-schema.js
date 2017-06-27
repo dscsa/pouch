@@ -104,10 +104,9 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
 
   function generic(doc) {
     let drug = doc.drug || doc //used in both transaction.drug and drug
-    let name = drug.generics.map(concat).join(', ')
+    let name = drug.generics.map(concat).join(', ')+' '+drug.form
 
-    if (drug.form != 'Capsule' && drug.form != 'Tablet')
-      name += ' '+drug.form
+    name = name.replace(/ tablet| capsule/i, '')
 
     return name
 
