@@ -59,7 +59,6 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
       .ensure('drug').rules(drug)
       .ensure('user._id').required().typeTel()
       .ensure('shipment._id').required()
-        .typeTel()
         .pattern(/^\d{10}$|^\d{10}\.\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{10}$/)
         .withMessage('must be a string in the format "account.from._id" or "account.from._id"."account.to._id"."new Date().toJSON()"')
       .ensure('verifiedAt').typeDateTime()

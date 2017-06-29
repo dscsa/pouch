@@ -10,7 +10,6 @@ let model     = require('./pouchdb-model.js')
 let baseUrl   = 'http://localhost:5984/'
 let schema    = require('./pouchdb-schema.js')(model, micro)
 let PouchDB   = require('pouchdb-core').plugin(query).plugin(adapter)
-let request   = require('request')
 
 schema._users = model()
 

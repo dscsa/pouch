@@ -56,7 +56,6 @@ function pouchModel() {
         options  = {}
       }
 
-      const errStack = new Error().stack
       const resolve  = success(callback)
       return validate([body], this._props, options).then(docs => {
 
@@ -84,7 +83,6 @@ function pouchModel() {
         options  = {}
       }
 
-      const errStack = new Error().stack
       const resolve  = success(callback)
 
       //Without the line below, _changes feed was not honoring longpolling and replication would
@@ -200,10 +198,11 @@ function pouchModel() {
   plugin.custom = function(rule) {
 
     function custom(doc, val, key, opts) {
-      return (key && isNull(val)) || rule.call(this, doc, val, key, opts)
+      return (key && isNull(val)) || rule.call(opts && opts.this, doc, val, key, opts)
     }
     //Maintain rule name for easier debugging
-    Object.defineProperty(custom, "name", { value:rule.name});
+    Object.defineProperty(custom, "name", {value:rule.name});
+    Object.defineProperty(custom, "toString", {value:rule.toString.bind(rule)});
 
     return this._assert(custom)
   }
@@ -381,14 +380,19 @@ function isPropError(prop, value, doc, opts) {
   let rules = prop.rules.map(rule => {
     try {
       let promise  = rule.call(opts && opts.this, doc, value, prop.key, opts)
-      prop.stack = Error().stack
       //Catch Asyncronous Errors
-      return Promise.resolve(promise).catch(err => (console.log('catch', err), rule.message = err, prop.stack = err.stack, false))
+      return Promise.resolve(promise).catch(err => {
+        console.log('Asyncronous Rule Error', err)
+        rule.message = 'Error calling '+rule
+        prop.stack = err.stack.split('\n')
+        return false
+      })
     }
     //Catch Syncronous Errors
     catch(err) {
-      prop.stack = err.stack
-      rule.message = err
+      console.log('Syncronous Rule Error', err)
+      prop.stack = err.stack.split('\n')
+      rule.message = 'Error calling '+rule
       return false
     }
   })
@@ -403,7 +407,6 @@ function isPropError(prop, value, doc, opts) {
       return prop.error = false
 
     prop.message = message(prop, doc, JSON.stringify(value || null))
-    prop.stack   = prop.stack && prop.stack.split('\n')
 
     return prop.error = true
   })
@@ -430,20 +433,24 @@ function interpolate(str, doc) {
 
 //getter and setter for
 //"nested.properties.of.objects.with.strings.like.this"
-function dotNotation(doc, key, val) {
+function dotNotation(doc, path, val) {
 
-  let keys = key.split('.')
-  let last = keys.pop()
-  let next = doc
+  let old, next = doc, keys = path.split('.')
 
-  for (let key of keys)
-    next = next[key]
+  for (var key of keys) {
+
+    if ( ! next)
+      throw Error(JSON.stringify(doc)+' does not contain '+path)
+
+    old = next
+    next = old[key]
+  }
 
   //we could be setting val as null, undefined, 0, false etc
   if (arguments.length < 3)
-    return next[last]
+    return next
 
-  next[last] = val
+  old[key] = val
 
   return true
 }
@@ -459,5 +466,5 @@ function getLength(val) {
 
 function specialDoc(doc) {
   if ( ! doc || typeof doc._id != 'string' ) return false // _id might calculated not be set yet. No doc if creating a database.  Don't validate _design/_local/_deleted docs
-  return doc._id.startsWith('_design/') || doc._id.startsWith('_local/') || doc._deleted
+  return doc._id.startsWith('_design/') || doc._id.startsWith('_local/') || doc._id == '_security' || doc._deleted
 }
