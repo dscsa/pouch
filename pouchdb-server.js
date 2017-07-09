@@ -1,13 +1,12 @@
 "use strict"
 
 //TODO create a _users db
-//TODO set _users db admin role to ['user']
-
+let baseUrl   = 'http://localhost:5984/'
 let admin     = {ajax:{auth:require('../../keys/dev')}}
 let query     = require('pouchdb-mapreduce')
 let adapter   = require('pouchdb-adapter-http')
 let model     = require('./pouchdb-model.js')
-let baseUrl   = 'http://localhost:5984/'
+let ajax      = require('../server/helpers/ajax.js')()
 let schema    = require('./pouchdb-schema.js')(model, micro)
 let PouchDB   = require('pouchdb-core').plugin(query).plugin(adapter)
 
@@ -15,7 +14,7 @@ schema._users = model()
 
 for (let db in schema) {
 
-  let resource = require('../server/'+db)
+  let resource = require('../server/models/'+db)
 
   schema[db] = resource.validate(schema[db])
 
@@ -27,6 +26,15 @@ for (let db in schema) {
 
   exports[db].allDocs({startkey:'_design/', endkey:'_design/{}', include_docs:true}).then(ddocs => {
 
+    //pouchdb doesn't allow _id:_security in its put(), so do it manually
+    //wait for other calls because pouchdb doesn't create db immediately
+    ajax({
+      method:'PUT',
+      url:baseUrl+db+'/_security',
+      body:{admins:{}, members:{roles:['allAccounts']}},
+      auth:admin.ajax.auth
+    })
+    .catch(err => console.log('_security error', err))
 
     for (let i in resource.views) {
 
