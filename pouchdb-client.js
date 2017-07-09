@@ -122,7 +122,7 @@ function createLocalDb(name) {
   if (name == 'transaction') //transaction db is remote only
     return remote[name]
 
-  let db = new PouchDB.plugin(schema[name])(name)
+  let db = new PouchDB.plugin(schema[name])(name) //localdb validation
   db.replicate.to(remote[name], {live:true, retry:true})
 
   setTimeout(_ => {

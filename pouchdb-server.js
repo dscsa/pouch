@@ -25,26 +25,53 @@ for (let db in schema) {
   console.log('new db', baseUrl+db)
   exports[db] = new PouchDB.plugin(schema[db])(baseUrl+db, admin)
 
-  for (let i in resource.views) {
+  exports[db].allDocs({startkey:'_design/', endkey:'_design/{}', include_docs:true}).then(ddocs => {
 
-    let view = resource.views[i]
-    let ddoc = {
-      _id:'_design/'+i,
-      lists:{roles:string(resource.lists)},
-      views:{},
-      filters:{roles:string(resource.filter)}
+
+    for (let i in resource.views) {
+
+      let update = true
+      let view = resource.views[i]
+      let ddoc = {
+        _id:'_design/'+i,
+        _rev:undefined, //placeholder for property order since JSON.stringify is used for object comparison latter on
+        lists:{roles:string(resource.lists)},
+        views:{},
+        filters:{roles:string(resource.filter)}
+      }
+
+      ddoc.views[i] = {
+        map:string(view.map || view, resource.lib),
+        reduce:string(view.reduce, resource.lib)
+      }
+
+      //Remove ddocs that are no longer being used
+      //Go backwards since deleteing ddocs as we go
+      for (let i = ddocs.rows.length - 1; i >= 0; i--)  {
+
+        let old = ddocs.rows[i].doc
+
+        if (old._id != ddoc._id)
+          continue
+
+        ddocs.rows.splice(i, 1) //we will remove any old ddocs remaining at the end
+        ddoc._rev = old._rev //this is so the update works
+
+        if (JSON.stringify(ddoc) == JSON.stringify(old))
+          update = false
+      }
+
+      if (update) {
+        console.log( ddoc._rev ? 'updating' : 'adding', 'ddoc', ddoc._id)
+        exports[db].put(ddoc, admin).catch(err => console.log('db initialization err', db, err, err.stack))
+      }
     }
 
-    ddoc.views[i] = {
-      map:string(view.map || view, resource.lib),
-      reduce:string(view.reduce, resource.lib)
+    for (let row of ddocs.rows) {
+      console.log('removing ddoc', row.doc._id)
+      exports[db].remove(row.doc, admin)
     }
-
-    //Get latest _rev so we can update db to new ddoc
-    exports[db].get(ddoc._id).catch(err => Object())
-    .then(doc => exports[db].put(Object.assign(ddoc, {_rev:doc._rev}), admin))
-    .catch(err => console.log('db initialization err', db, err, err.stack))
-  }
+  })
 }
 
 //
