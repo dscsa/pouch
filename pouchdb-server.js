@@ -43,14 +43,12 @@ for (let db in schema) {
       let ddoc = {
         _id:'_design/'+i,
         _rev:undefined, //placeholder for property order since JSON.stringify is used for object comparison latter on
-        lists:{roles:string(resource.lists)},
-        views:{},
-        filters:{roles:string(resource.filter)}
+        views:{}
       }
 
       ddoc.views[i] = {
-        map:string(view.map || view, resource.lib),
-        reduce:string(view.reduce, resource.lib)
+        map:string(view.map || view, true),
+        reduce:string(view.reduce, true)
       }
 
       //Remove ddocs that are no longer being used
@@ -80,6 +78,38 @@ for (let db in schema) {
       exports[db].remove(row.doc, admin)
     }
   })
+
+  let lib = []
+  for (let i in resource.lib) {
+    lib.push("'"+i+"':"+string(resource.lib[i]))
+  }
+
+  function string(fn, polyfill) {
+    if ( ! fn || typeof fn == 'string') return fn
+
+    fn = '('+fn+')'
+
+    //TODO convert arrow functions
+    if ( ! fn.startsWith('(function'))
+      fn = addFunction(fn)
+
+    //Regarding views/lib placement: http://couchdb-13.readthedocs.io/en/latest/1.1/commonjs/
+    //however pouchdb doesn't support require() so we need to polyfill
+    if (polyfill && fn.includes('require('))
+      fn = addRequire(fn)
+
+    return fn
+  }
+
+  //Spidermoney does support shorthand methods
+  function addFunction(fn) {
+    return '(function '+fn.slice(1)
+  }
+
+  //TODO only require full lib object if dynamic require.  Otherwise only include libs actually used
+  function addRequire(fn) {
+    return fn.slice(0, -2)+'function require(path) { return {'+lib+'}[path]}\n})'
+  }
 }
 
 //
@@ -89,22 +119,4 @@ for (let db in schema) {
 //Node shim to return number of microseconds for use in _id creation
 function micro() {
   return ('000'+ process.hrtime()[1]).slice(-6, -3)
-}
-
-//Spidermoney does support shorthand methods
-function addFunction(fn) {
-  fn = fn.toString()
-  return '('+(fn.startsWith('function') ? fn : 'function '+fn)+')'
-}
-
-function string(fn, lib) {
-  if ( ! fn || typeof fn == 'string') return fn
-
-  //TODO convert arrow functions
-  fn = addFunction(fn)
-
-  //Regarding views/lib placement: http://couchdb-13.readthedocs.io/en/latest/1.1/commonjs/
-  //however pouchdb doesn't support require() so we need to replace with actual functions
-  //needs to be recursive so if a dependency has require that get's replaced too
-  return fn.replace(/require\(["'](.*?)["']\)/g, (_, key) => '('+string(lib[key], lib)+')')
 }
