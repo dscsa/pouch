@@ -95,7 +95,9 @@ let dbs    = Object.keys(schema).filter(db => db != 'transaction')
 let remote = {}
 let local  = {
   ajax(opts) {
-    opts.url = baseurl+opts.url
+    if ( ! ~ opts.url.indexOf('//'))
+      opts.url = baseurl+opts.url
+
     return new Promise((resolve, reject) => {
       return remote.user._ajax(opts, (err, body) => {
         err ? reject(err) : resolve(body)

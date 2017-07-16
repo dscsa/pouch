@@ -94,7 +94,8 @@ for (let db in schema) {
       fn = addFunction(fn)
 
     //Regarding views/lib placement: http://couchdb-13.readthedocs.io/en/latest/1.1/commonjs/
-    //however pouchdb doesn't support require() so we need to polyfill
+    //however pouchdb doesn't support require() so we need to polyfill.  We only need polyfill
+    //once at top level.
     if (polyfill && fn.includes('require('))
       fn = addRequire(fn)
 
