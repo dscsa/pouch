@@ -77,6 +77,7 @@ function pouchModel() {
 
     //Run validation before calling the super function
     function bulkDocs(body, options = {}, callback) {
+
       //Options is optional in pouchdb so check if it was left out
       if (typeof options == 'function') {
         callback = options
@@ -92,7 +93,6 @@ function pouchModel() {
         options.new_edits = body.new_edits
 
       return validate(body.docs || body, this._props, options).then(docs => {
-
         if (options) delete options.this
         const update = saved => {
           return updateDocs(body.docs || body, docs, saved)
@@ -299,6 +299,12 @@ function pouchModel() {
   plugin.default = function(fn) {
     const default_ = (doc, val, key, opts) => Promise.resolve(val || fn.call(opts && opts.this, doc, val, key, opts)).then(val => dotNotation(doc, key, val))
     return this._assert(default_).withMessage('cannot be set as default. ${$error}')
+  }
+
+  //Always valid but can trigger other functions
+  plugin.trigger = function(fn) {
+    const trigger_ = (doc, val, key, opts) => Promise.resolve(fn.call(opts && opts.this, doc, val, key, opts), true)
+    return this._assert(trigger_).withMessage('trigger function threw an error')
   }
 
   //Allow rules to be composable.  By reusing schema, helps with denormalized data
