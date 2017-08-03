@@ -303,7 +303,10 @@ function pouchModel() {
 
   //Always valid but can trigger other functions
   plugin.trigger = function(fn) {
-    const trigger_ = (doc, val, key, opts) => Promise.resolve(fn.call(opts && opts.this, doc, val, key, opts), true)
+    const trigger_ = (doc, val, key, opts) => {
+      fn.call(opts && opts.this, doc, val, key, opts)
+      return Promise.resolve(true)
+    }
     return this._assert(trigger_).withMessage('trigger function threw an error')
   }
 
