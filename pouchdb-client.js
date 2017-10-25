@@ -128,7 +128,7 @@ function createLocalDb(name) {
   db.replicate.to(remote[name], {live:true, retry:true})
 
   setTimeout(_ => {
-    local.user.session.get().then(session => session && sync(name, true))
+    local.user.session.get().then(session => session && sync(name, true)).catch(err => console.error('initial syncing error', err))
   }, 5000) //Kiah's laptop was maxing out on TCP connections befor app-bundle loaded.  Wait on _changes into static assets can load
 
   return db
