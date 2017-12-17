@@ -11,7 +11,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
     .ensure('generics.name').required().typeString().pattern(/([A-Z][0-9a-z]*\s?)+\b/)
     .ensure('generics.strength').typeString().pattern(/^[0-9][0-9a-z/.]+$/)
     .ensure('price').default(doc => Object()).typeObject()
-    .ensure('price.invalidAt').typeDateTime()
+    .ensure('price.invalidAt').typeDate()
     .ensure('price.goodrx').typeNumber()
     .ensure('price.nadac').typeNumber()
     .ensure('brand').typeString().maxLength(20)
