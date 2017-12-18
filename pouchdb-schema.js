@@ -14,6 +14,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
     .ensure('price.invalidAt').typeDate()
     .ensure('price.goodrx').typeNumber()
     .ensure('price.nadac').typeNumber()
+    .ensure('price.retail').typeNumber()
     .ensure('brand').typeString().maxLength(20)
     .ensure('pkg').typeString().minLength(1).maxLength(2)
 
