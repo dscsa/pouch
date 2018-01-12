@@ -251,7 +251,7 @@ function pouchModel() {
   }
 
   plugin.typeEmail = function() {
-    const typeEmail = (doc, val) => /[\w._]{2,}@\w{3,}\.(com|org|net|gov)/.test(val)
+    const typeEmail = (doc, val) => /[\w._-]{2,}@[\w_-]{3,}\.(com|org|net|gov)/.test(val)
     return this.custom(typeEmail).withMessage(`must be a valid email`)
   }
 
