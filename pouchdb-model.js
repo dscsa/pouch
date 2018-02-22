@@ -67,6 +67,7 @@ function pouchModel() {
         //calling bulkDocs prevents post/put going through validation twice.  And it makes the update
         //function more reusable.  However pouch's "put" method has some special hooks that we miss
         //this might cause subtle bugs down the road.
+        console.log('pouchdb._prototype.bulkDocs 1', valid, options)
         return _prototype.bulkDocs.call(this, valid, options).then(update).then(doc => {
           if (doc.error) throw doc
           else return doc
@@ -97,7 +98,9 @@ function pouchModel() {
         const update = saved => {
           return updateDocs(body.docs || body, docs, saved)
         }
-        return _prototype.bulkDocs.call(this, validOnly(docs), options).then(update)
+        const valid = validOnly(docs)
+        console.log('pouchdb._prototype.bulkDocs 2', valid, options)
+        return _prototype.bulkDocs.call(this, valid, options).then(update)
       })
       .then(resolve, callback)
     }
