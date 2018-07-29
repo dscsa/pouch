@@ -73,8 +73,12 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
       .ensure('qty.from').typeNumber().min(0).max(3000)
       .ensure('qty.to').typeNumber().min(0).max(3000)
       .ensure('exp').default(doc => Object()).typeObject()
-      .ensure('exp.from').typeDateTime()
-      .ensure('exp.to').typeDateTime()
+      .ensure('exp.from')
+        .typeDateTime()
+        .pattern(/^20[12]/) //We were getting malformed dates like 0201-06
+      .ensure('exp.to')
+        .typeDateTime()
+        .pattern(/^20[12]/) //We were getting malformed dates like 0201-06
       .ensure('bin')
         .pattern(/[A-Z]\d{2}|[A-Za-z]\d{3}|UNIT/)
         .custom(doc => doc.verifiedAt).withMessage('can only be set when transaction.verifiedAt is set')
