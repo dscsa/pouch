@@ -62,7 +62,7 @@ function pouchModel() {
         const valid  = validOnly(docs)
         if ( ! valid.length) throw docs[0]
 
-        if (options) delete options.this
+        if (options) delete options.ctx
         const update = saved => updateDocs([body], docs, saved)[0]
         //calling bulkDocs prevents post/put going through validation twice.  And it makes the update
         //function more reusable.  However pouch's "put" method has some special hooks that we miss
@@ -94,7 +94,7 @@ function pouchModel() {
         options.new_edits = body.new_edits
 
       return validate(body.docs || body, this._props, options).then(docs => {
-        if (options) delete options.this
+        if (options) delete options.ctx
         const update = saved => {
           return updateDocs(body.docs || body, docs, saved)
         }
@@ -125,7 +125,7 @@ function pouchModel() {
     function updateDocs(body, docs, saved) {
       for (const doc of saved)
         for (const i in docs)
-          if (doc.id == docs[i]._id) {
+          if (doc.id == docs[i]._id && body[i]._rev) { //Check for _rev so we don't add back error messages
             body[i]._rev = doc.rev //automatically update rev which is otherwise a pain. PouchDB clones post/put args so this won't help those methods
             docs[i] = doc
           }
@@ -140,7 +140,7 @@ function pouchModel() {
     //PouchDB server takes and executes validate method
     //PouchDB model can accept rules that return promises
 
-    function validateDoc(doc, props, options) {
+    function validateDoc(doc, props, opts) {
 
       let error = {errors:{}, message:[], doc, status:403, error:true}
 
@@ -150,7 +150,7 @@ function pouchModel() {
 
         prop.values = getValues(doc, key)
         //Test each value to see if it passes this property's rules
-        let propErrors = prop.values.map(val => isPropError(prop, val, doc, options))
+        let propErrors = prop.values.map(val => isPropError(doc, opts, val, prop))
         //Wait for all rules to resolve
         return Promise.all(propErrors).then(propErrors => {
           //We don't need to save all errors for each rule just save if this property failed or not
@@ -200,8 +200,8 @@ function pouchModel() {
 
   plugin.custom = function(rule) {
 
-    function custom(doc, val, key, opts) {
-      return (key && isNull(val)) || rule.call(opts && opts.this, doc, val, key, opts)
+    function custom(doc, opts, val, key) {
+      return (key && isNull(val)) || rule(doc, opts, val, key)
     }
     //Maintain rule name for easier debugging
     Object.defineProperty(custom, "name", {value:rule.name});
@@ -211,80 +211,80 @@ function pouchModel() {
   }
 
   plugin.required = function() {
-    const required = (doc, val) => ! isNull(val)
+    const required = (doc, opts, val) => ! isNull(val)
     return this._assert(required).withMessage(`is required`)
   }
 
   plugin.equals = function(value) {
-    const equals = (doc, val) => val === value
+    const equals = (doc, opts, val) => val === value
     return this.custom(equals).withMessage(`must be equal to ${value}`)
   }
 
   plugin.notEquals = function(value) {
-    const notEquals = (doc, val) => val !== value
+    const notEquals = (doc, opts, val) => val !== value
     return this.custom(notEquals).withMessage(`must not be equal to ${value}`)
   }
 
   plugin.pattern = function(regex) {
     regex = regex instanceof RegExp ? regex : RegExp(regex)
-    const pattern = (doc, val) => regex.test(val)
+    const pattern = (doc, opts, val) => regex.test(val)
     return this.custom(pattern).withMessage(`must match regex ${regex}`)
   }
 
   plugin.min = function(num) {
     //TODO make this work with dates and any other types that HTML5 validation accepts
-    const min = (doc, val) => val >= num
+    const min = (doc, opts, val) => val >= num
     return this.custom(min).withMessage(`must be ${num} or more`)
   }
 
   plugin.max = function(num) {
-    const max = (doc, val) => val <= num
+    const max = (doc, opts, val) => val <= num
     //TODO make this work with dates and any other types that HTML5 validation accepts
     return this.custom(max).withMessage(`must be ${num} or less`)
   }
 
   plugin.minLength = function(length) {
-    const minLength = (doc, val) => getLength(val) >= length
+    const minLength = (doc, opts, val) => getLength(val) >= length
     return this.custom(minLength).withMessage(`must have a length of ${length} or more`)
   }
 
   plugin.maxLength = function(length) {
-    const maxLength = (doc, val) => getLength(val) <= length
+    const maxLength = (doc, opts, val) => getLength(val) <= length
     return this.custom(maxLength).withMessage(`must have a length of ${length} or less`)
   }
 
   plugin.typeEmail = function() {
-    const typeEmail = (doc, val) => /[\w._-]{2,}@[\w_-]{3,}\.(com|org|net|gov)/.test(val)
+    const typeEmail = (doc, opts, val) => /[\w._-]{2,}@[\w_-]{3,}\.(com|org|net|gov)/.test(val)
     return this.custom(typeEmail).withMessage(`must be a valid email`)
   }
 
   plugin.typeNumber = function() {
-    const typeNumber = (doc, val) => typeof val == 'number'
+    const typeNumber = (doc, opts, val) => typeof val == 'number'
     return this.custom(typeNumber).withMessage(`must be a number`)
   }
 
   plugin.typeString = function() {
-    const typeString = (doc, val) => typeof val == 'string'
+    const typeString = (doc, opts, val) => typeof val == 'string'
     return this.custom(typeString).withMessage(`must be a string`)
   }
 
   plugin.typeArray = function() {
-    const typeArray = (doc, val) => Array.isArray(val)
+    const typeArray = (doc, opts, val) => Array.isArray(val)
     return this.custom(typeArray).withMessage(`must be an array`)
   }
 
   plugin.typeObject = function() {
-    const typeObject = (doc, val) => typeof val == 'object' && ! Array.isArray(val)
+    const typeObject = (doc, opts, val) => typeof val == 'object' && ! Array.isArray(val)
     return this.custom(typeObject).withMessage(`must be an object`)
   }
 
   plugin.typeDate = function() {
-    const typeDate = (doc, val) => val == new Date(val).toJSON().slice(0, 10)
+    const typeDate = (doc, opts, val) => val == new Date(val).toJSON().slice(0, 10)
     return this.custom(typeDate).withMessage(`must be a valid json date`)
   }
 
   plugin.typeDateTime = function() {
-    const typeDateTime = (doc, val) => val == new Date(val).toJSON()
+    const typeDateTime = (doc, opts, val) => val == new Date(val).toJSON()
     return this.custom(typeDateTime).withMessage('must be a valid json datetime ')
   }
 
@@ -294,20 +294,20 @@ function pouchModel() {
 
   //Sets the value as calculated
   plugin.set = function(fn) {
-    const set = (doc, val, key, opts) => Promise.resolve(fn.call(opts && opts.this, doc, val, key, opts)).then(val => dotNotation(doc, key, val))
+    const set = (doc, opts, val, key) => Promise.resolve(fn(doc, opts, val, key)).then(val => dotNotation(doc, key, val))
     return this._assert(set).withMessage('cannot be set. ${$error}')
   }
 
   //Sets the value if it is not already set
   plugin.default = function(fn) {
-    const default_ = (doc, val, key, opts) => Promise.resolve(val || fn.call(opts && opts.this, doc, val, key, opts)).then(val => dotNotation(doc, key, val))
+    const default_ = (doc, opts, val, key) => Promise.resolve(val || fn(doc, opts, val, key)).then(val => dotNotation(doc, key, val))
     return this._assert(default_).withMessage('cannot be set as default. ${$error}')
   }
 
   //Always valid but can trigger other functions
   plugin.trigger = function(fn) {
-    const trigger_ = (doc, val, key, opts) => {
-      fn.call(opts && opts.this, doc, val, key, opts)
+    const trigger_ = (doc, opts, val, key) => {
+      fn(doc, opts, val, key)
       return Promise.resolve(true)
     }
     return this._assert(trigger_).withMessage('trigger function threw an error')
@@ -352,21 +352,30 @@ function pouchModel() {
 //in general we want to flatten arrays as above. The exception is when ending with an array so,
 //for the same history object above, ensure('history').typeArray() would return true
 //TODO can we reuse code from dotNotation()
-function getValues(doc, key) {
+function getValues(doc, key, debug) {
+
+  debug && console.log('key', key, 'doc', doc)
 
   let vals = [doc]
 
   if ( ! key) return vals
   let keys = key.split('.')
 
+  debug && console.log('keys', keys, 'doc', doc)
+
   for (let i in keys) {
     for (let j in vals) {
 
+      debug && console.log('loop', 'i', i, keys.hasOwnProperty(i), 'j', j, vals.hasOwnProperty(j), 'vals[j]', vals[j], 'keys[i]', keys[i])
+
       //If path does not exist count value as
       //undefined and stop iterating this obj.
-      if ( ! vals[j]) continue
+      //ignore aurelia set properties on array that for..in hits.  Can't do for(;vals.length;i++) because we maybe adding vals dynamically so length can change
+      if ( ! keys.hasOwnProperty(i) || ! vals.hasOwnProperty(j) || ! vals[j]) continue
 
       let next = vals[j][keys[i]]
+
+      debug && console.log('loop', 'i', i, 'j', j, 'next', next)
 
       //Flatten resulting array if it is in middle but not end of path
       //e.g., transaction.history._id would flatten since history is an
@@ -374,11 +383,14 @@ function getValues(doc, key) {
       if (Array.isArray(next) && i < keys.length-1) {
         vals.splice(j, 1)
         vals = vals.concat(next)
+        debug && console.log('has middle array', 'i', i, 'j', j, 'vals', vals)
       } else {
         vals[j] = next
       }
     }
   }
+
+
   return vals
 }
 
@@ -388,12 +400,22 @@ function keyToLabel(key) {
   return key ? key.split(/\.|(?=[A-Z])/g).map(word => word.charAt(0).toUpperCase()+word.slice(1)).join(' ') : null
 }
 
-function isPropError(prop, value, doc, opts) {
+function isPropError(doc, opts, value, prop) {
   let rules = prop.rules.map(rule => {
     try {
-      let promise  = rule.call(opts && opts.this, doc, value, prop.key, opts)
+
+
+      let promise  = rule(doc, opts, value, prop.key)
       //Catch Asyncronous Errors
-      return Promise.resolve(promise).catch(err => {
+      return Promise.resolve(promise)
+      .then(valid => {
+        if ( ! valid) {
+          console.error('Rule invalid', valid, prop.key, value, doc, opts, prop.message)
+          //getValues(doc, prop.key, true)
+        }
+        return valid
+      })
+      .catch(err => {
         console.log('Asyncronous Rule Error', err)
         rule.message = 'Error calling '+rule
         prop.stack = err.stack.split('\n')

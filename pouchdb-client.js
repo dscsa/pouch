@@ -26,21 +26,24 @@ let methods = {
         })
         .then(_ => {
           let loading = {
-            resources:dbs.slice(),       //display a list of what is being worked on
-            progress:{last_seq:0}  //allow for a progress bar
+            resources:dbs.slice(),  //display a list of what is being worked on
+            progress:{docs_read:0, percent:'0%'}  //allow for a progress bar
           }
 
           return Promise.all(loading.resources.map(db => remote[db].info()))
           .then(infos => {
 
-            loading.progress.update_seq = infos.reduce((sum, info) => sum+info.update_seq, 0)
+            loading.progress.doc_count = infos.reduce((sum, info) => sum+info.doc_count+info.doc_del_count, 0)
+            console.log('loading.progress', infos)
 
             //Give an array of promises that we can do Promise.all() to determine when done
             loading.syncing = loading.resources.map(db => {
               return sync(db)
               .on('change', info => {
-                loading.progress.last_seq += info.docs_read <= 100 ? info.last_seq : info.docs.length
-                //console.log('on change', db, loading.progress.update_seq, loading.progress.last_seq, info)
+
+                loading.progress.docs_read += info.docs.length
+                loading.progress.percent    = Math.min(loading.progress.docs_read/loading.progress.doc_count * 100, 100).toFixed(0)+'%' //cap at 100%
+                if (db == 'drug') console.log('on change', db, loading.progress.docs_read, info.docs.length, info)
               })
               .then(_ => {
                 console.log('db', db, 'synced')

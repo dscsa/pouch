@@ -16,6 +16,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
     .ensure('price.nadac').typeNumber()
     .ensure('price.retail').typeNumber()
     .ensure('brand').typeString().maxLength(20)
+    .ensure('gsn').typeNumber().minLength(4).maxLength(5)
     .ensure('pkg').typeString().minLength(1).maxLength(2)
 
   //db specific schema
@@ -49,7 +50,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
       .ensure('account.from.name').required().typeString()
       .ensure('account.from._id').required().typeTel()
       .ensure('tracking').required().minLength(6)
-      .ensure('updatedAt').set(doc => new Date().toJSON())
+      .ensure('updatedAt').set(_ => new Date().toJSON())
       .methods(methods.shipment),
 
     transaction:pouchModel()
@@ -66,8 +67,6 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
         .custom(doc => doc.qty.from || doc.qty.to).withMessage('cannot be set unless qty.from or qty.to is set')
         .custom(doc => doc.exp.from || doc.exp.to).withMessage('cannot be set unless exp.from or exp.to is set')
       .ensure('next').default(doc => []).typeArray()
-        .custom(doc => ! doc.next.length || doc.verifiedAt)
-        .withMessage('cannot contain any values unless transaction.verifiedAt is set')
       .ensure('next.qty').typeNumber()
       .ensure('qty').default(doc => Object()).typeObject()
       .ensure('qty.from').typeNumber().min(0).max(3000)
@@ -80,8 +79,8 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
         .typeDateTime()
         .pattern(/^20[12]/) //We were getting malformed dates like 0201-06
       .ensure('bin')
-        .pattern(/[A-Z]\d{2}|[A-Za-z]\d{3}|UNIT/)
-        .custom(doc => doc.verifiedAt).withMessage('can only be set when transaction.verifiedAt is set')
+        .pattern(/[A-Z]\d{2}|[A-Za-z][0-6]\d{2}/)
+        .custom(doc => /[A-Z]\d{2}/.test(doc.bin) || doc.verifiedAt).withMessage('a nonrepack bin can only be set when verifiedAt is set')
       .ensure('updatedAt').set(_ => new Date().toJSON())
       .methods(methods.transaction),
 
