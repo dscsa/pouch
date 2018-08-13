@@ -16,7 +16,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
     .ensure('price.nadac').typeNumber()
     .ensure('price.retail').typeNumber()
     .ensure('brand').typeString().maxLength(20)
-    .ensure('gsn').typeNumber().minLength(4).maxLength(5)
+    .ensure('gsns').pattern(/^\d{4,5}(,\d{4,5})*$/)
     .ensure('pkg').typeString().minLength(1).maxLength(2)
 
   //db specific schema
