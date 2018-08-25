@@ -2,7 +2,7 @@
 
 //TODO create a _users db
 let baseUrl   = 'http://localhost:5984/'
-let admin     = {ajax:{auth:require('../../keys/dev'), timeout:60000}}
+let admin     = {ajax:{auth:require('../../keys/dev'), timeout:600000}}
 let query     = require('pouchdb-mapreduce')
 let adapter   = require('pouchdb-adapter-http')
 let model     = require('./pouchdb-model.js')
