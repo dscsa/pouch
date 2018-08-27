@@ -96,6 +96,7 @@ function pouchModel() {
       return validate(body.docs || body, this._props, options).then(docs => {
         if (options) delete options.ctx
         const update = saved => {
+          console.log('pouchdb-model updating docs', body, docs, saved)
           return updateDocs(body.docs || body, docs, saved)
         }
         const valid = validOnly(docs)
