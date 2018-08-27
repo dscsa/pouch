@@ -127,7 +127,7 @@ function pouchModel() {
       for (const doc of saved)
         for (const i in docs) {
           console.log('updateDocs', doc.id, docs[i]._id, body[i]._rev, doc.rev)
-          if (doc.id == docs[i]._id && body[i]._rev) { //Check for _rev so we don't add back error messages
+          if (doc.id == docs[i]._id && ! docs[i].error) { //Don't add back error messages
             body[i]._rev = doc.rev //automatically update rev which is otherwise a pain. PouchDB clones post/put args so this won't help those methods
             docs[i] = doc
           }
