@@ -96,7 +96,7 @@ function pouchModel() {
       return validate(body.docs || body, this._props, options).then(docs => {
         if (options) delete options.ctx
         const update = saved => {
-          console.log('pouchdb-model updating docs', body, docs, saved)
+          //console.log('pouchdb-model updating docs', body, docs, saved)
           return updateDocs(body.docs || body, docs, saved)
         }
         const valid = validOnly(docs)
@@ -126,7 +126,7 @@ function pouchModel() {
     function updateDocs(body, docs, saved) {
       for (const doc of saved)
         for (const i in docs) {
-          console.log('updateDocs', doc.id, docs[i]._id, body[i]._rev, doc.rev)
+          //console.log('updateDocs', doc.id, docs[i]._id, body[i]._rev, doc.rev)
           if (doc.id == docs[i]._id && ! docs[i].error) { //Don't add back error messages
             body[i]._rev = doc.rev //automatically update rev which is otherwise a pain. PouchDB clones post/put args so this won't help those methods
             docs[i] = doc
