@@ -162,7 +162,9 @@ function pouchModel() {
         })
       }))
       .then(_ => {
-        if ( ! Object.keys(error.errors).length) return doc
+        if ( ! error.message.length) return doc
+
+        console.log('pouchdb-model', doc, props, opts, error)
         //We use commas to collate accross errors for a single
         //property and use semicolons accross properties
         error.message = error.message.join('; ')
