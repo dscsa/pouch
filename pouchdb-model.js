@@ -125,11 +125,13 @@ function pouchModel() {
     //because new_edits=false with no errors will return an array of docs rather than empty array
     function updateDocs(body, docs, saved) {
       for (const doc of saved)
-        for (const i in docs)
+        for (const i in docs) {
+          console.log('updateDocs', doc.id, docs[i]._id, body[i]._rev, doc.rev)
           if (doc.id == docs[i]._id && body[i]._rev) { //Check for _rev so we don't add back error messages
             body[i]._rev = doc.rev //automatically update rev which is otherwise a pain. PouchDB clones post/put args so this won't help those methods
             docs[i] = doc
           }
+        }
 
       return docs
     }
