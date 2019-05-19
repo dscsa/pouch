@@ -63,6 +63,9 @@ function pouchModel() {
         if ( ! valid.length) throw docs[0]
 
         if (options) delete options.ctx
+
+        //console.log('pouchdb-model', docs)
+
         const update = saved => updateDocs([body], docs, saved)[0]
         //calling bulkDocs prevents post/put going through validation twice.  And it makes the update
         //function more reusable.  However pouch's "put" method has some special hooks that we miss
@@ -127,7 +130,8 @@ function pouchModel() {
       for (const doc of saved)
         for (const i in docs) {
           //console.log('updateDocs', doc.id, docs[i]._id, body[i]._rev, doc.rev)
-          if (doc.id == docs[i]._id && ! docs[i].error) { //Don't add back error messages
+          if (doc.id == docs[i]._id && ! doc.error && ! docs[i].error) { //Don't add back error messages
+            //console.log('pouchdb-model updateDocs', doc, docs[i])
             body[i]._rev = doc.rev //automatically update rev which is otherwise a pain. PouchDB clones post/put args so this won't help those methods
             docs[i] = doc
           }
