@@ -20,6 +20,7 @@ let methods = {
 
       //db.user.session.post(email, password)
       post(body) {
+        
         return this.get().then(session => {
           if (session) return session //we are already logged in
           return local.ajax({url:'user/session', method:'post', body})

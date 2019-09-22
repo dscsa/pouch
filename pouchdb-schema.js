@@ -33,7 +33,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
       .methods(methods.drug),
 
     user:pouchModel()
-      .ensure('_id').set(doc => doc.phone.replace(/[^\d]/g, '')).typeTel()
+      .ensure('_id').set(doc => doc.phone.replace(/[^\d]/g, '')+'.'+doc.account._id.replace(/[^\d]/g, '')).typeTel()
       .ensure('phone').required().typeTel()
       .ensure('account._id').required().typeTel()
       .ensure('email').required().typeEmail()
