@@ -20,12 +20,14 @@ let methods = {
 
       //db.user.session.post(email, password)
       post(body) {
-        
+
         return this.get().then(session => {
-          if (session) return session //we are already logged in
-          return local.ajax({url:'user/session', method:'post', body})
+          if ((session && body.switchUsers) || (!session)) return local.ajax({url:'user/session', method:'post', body})
+          return session //meaning we are in session and not switching users, just reopening
         })
         .then(_ => {
+          if(body.switchUsers) return
+
           let loading = {
             resources:dbs.slice(),  //display a list of what is being worked on
             progress:{docs_read:0, percent:'0%'}  //allow for a progress bar
