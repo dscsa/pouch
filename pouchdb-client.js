@@ -84,6 +84,11 @@ let methods = {
       delete(body) {
         return local.ajax({url:'account/authorized', method:'delete', body:JSON.stringify(body)})
       }
+    },
+    picking:{
+      post(body){
+        return local.ajax({url:'account/picking', method:'post', body:JSON.stringify(body)})
+      }
     }
   },
 
