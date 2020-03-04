@@ -102,7 +102,7 @@ let methods = {
 }
 
 let schema = pouchSchema(pouchModel, micro, methods)
-let dbs    = Object.keys(schema).filter(db => db != 'transaction')
+let dbs    = Object.keys(schema).filter(db => db == 'drug')
 let remote = {}
 let local  = {
   ajax(opts) {
@@ -124,7 +124,7 @@ for (let db in schema) {
 }
 
 function createRemoteDb(name) {
-  if (name == 'transaction') //transaction db is remote only so we need validation here
+  if (name != 'drug') //transaction db is remote only so we need validation here
     PouchDB.plugin(schema[name])
 
   return new PouchDB(baseurl+name)
@@ -132,7 +132,7 @@ function createRemoteDb(name) {
 
 function createLocalDb(name) {
 
-  if (name == 'transaction') //transaction db is remote only
+  if (name != 'drug') //transaction db is remote only
     return remote[name]
 
   let db = new PouchDB.plugin(schema[name])(name) //localdb validation
