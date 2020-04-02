@@ -105,7 +105,9 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
 
   function ndc9(drug) {
     let [labeler, product] = drug._id.split('-')
-    return ('00000'+labeler).slice(-5)+('0000'+product).slice(-4)
+    //Some OTCs need all 10 digits of their UPC, which means all 11 digits of an NDC9.
+    //Saving them in DB in the 5-5 format, should derive an NDC9 here as 5-'0'5
+    return ('00000'+labeler).slice(-5)+('00000'+product).slice(product.length > 4 ? -6 : -4)
   }
 
   function generic(doc) {
