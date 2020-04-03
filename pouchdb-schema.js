@@ -23,7 +23,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
 
     drug:pouchModel()
       .ensure().rules(drug)
-      .ensure('_id').required().pattern(/\d{4}-\d{4}|\d{5}-\d{3}|\d{5}-\d{4}/)
+      .ensure('_id').required().pattern(/\d{4}-\d{4}|\d{5}-\d{3}|\d{5}-\d{4}|\d{5}-\d{5}/)
       .ensure('upc').set(doc => doc._id.replace('-', ''))
       .ensure('ndc9').set(ndc9)
       .ensure('labeler').typeString().maxLength(40)
