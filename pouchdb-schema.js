@@ -59,7 +59,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
         .withMessage('cannot delete because this transaction has references within its "next" property')
       .ensure('_id').default(transactionId).typeString()
       .ensure('drug').rules(drug)
-      .ensure('drug._id').required().pattern(/Unspecified|\d{4}-\d{4}|\d{5}-\d{3}|\d{5}-\d{4}/)
+      .ensure('drug._id').required().pattern(/Unspecified|\d{4}-\d{4}|\d{5}-\d{3}|\d{5}-\d{4}|\d{5}-\d{5}/)
       .ensure('user._id').required().pattern(/^\d{10}$|^\d{10}\.\d{10}$/)
       .ensure('shipment._id').required()
         .pattern(/^\d{10}$|^\d{10}\.\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{10}$/)
