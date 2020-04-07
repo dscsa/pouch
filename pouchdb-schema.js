@@ -67,8 +67,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
       .ensure('verifiedAt').typeDateTime()
         .custom(doc => doc.qty.from || doc.qty.to).withMessage('cannot be set unless qty.from or qty.to is set')
         .custom(doc => doc.exp.from || doc.exp.to).withMessage('cannot be set unless exp.from or exp.to is set')
-      .ensure('next').default(doc => []).typeArray()
-      .ensure('next.qty').typeNumber()
+      .ensure('next').custom(properNextArray).withMessage('Next array is imporperly formatted')
       .ensure('qty').default(doc => Object()).typeObject()
       .ensure('qty.from').typeNumber().min(0).max(3000)
       .ensure('qty.to').typeNumber().min(0).max(3000)
@@ -108,6 +107,19 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
     //Some OTCs need all 10 digits of their UPC, which means all 11 digits of an NDC9.
     //Saving them in DB in the 5-5 format, should derive an NDC9 here as 5-'0'5
     return ('00000'+labeler).slice(-5)+('00000'+product).slice(product.length > 4 ? -6 : -4)
+  }
+
+  function properNextArray(doc){
+    let next = doc.next
+
+    if(next.length == 0) return true
+
+    if((next[0].picked) && (next[0].picked._id)){
+      return /[s|r|b|g][0-9]{2}/.test(next[0].picked.basket)
+    }
+
+    //TODO: check other fields
+    return true
   }
 
   function generic(doc) {
