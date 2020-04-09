@@ -115,7 +115,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
     if(next.length == 0) return true
 
     if((next[0].picked) && (next[0].picked._id)){
-      return /[s|r|b|g][0-9]{2}/.test(next[0].picked.basket)
+      return /[s|S|r|R|b|B|g|G][0-9]{2,3}/.test(next[0].picked.basket)
     }
 
     //TODO: check other fields
