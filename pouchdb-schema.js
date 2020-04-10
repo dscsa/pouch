@@ -67,8 +67,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
       .ensure('verifiedAt').typeDateTime()
         .custom(doc => doc.qty.from || doc.qty.to).withMessage('cannot be set unless qty.from or qty.to is set')
         .custom(doc => doc.exp.from || doc.exp.to).withMessage('cannot be set unless exp.from or exp.to is set')
-      .ensure('next').default(doc => []).typeArray()
-      .ensure('next.qty').typeNumber()
+      .ensure('next').custom(properNextArray).withMessage('Next array is imporperly formatted')
       .ensure('qty').default(doc => Object()).typeObject()
       .ensure('qty.from').typeNumber().min(0).max(3000)
       .ensure('qty.to').typeNumber().min(0).max(3000)
@@ -110,11 +109,24 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
     return ('00000'+labeler).slice(-5)+('00000'+product).slice(product.length > 4 ? -6 : -4)
   }
 
+  function properNextArray(doc){
+    let next = doc.next
+
+    if(next.length == 0) return true
+
+    if((next[0].picked) && (next[0].picked._id)){
+      return /[s|S|r|R|b|B|g|G][0-9]{2,3}/.test(next[0].picked.basket)
+    }
+
+    //TODO: check other fields
+    return true
+  }
+
   function generic(doc) {
     let drug = doc.drug || doc //used in both transaction.drug and drug
     let name = drug.generics.map(concat).join(', ')+' '+drug.form
 
-    name = name.replace(/ tablet| capsule/i, '')
+    name = name.replace(/ tablet| capsule/i, '')  //TODO: how to properly depracate? bc they're not the same thing
 
     return name
 
