@@ -110,12 +110,15 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
   }
 
   function properNextArray(doc){
+    return true ////TODO: come back to this function later on, currently the UI forces format, and there's too much already being tested 04/2020
+    
     let next = doc.next
 
     if(next.length == 0) return true
 
     if((next[0].picked) && (next[0].picked._id)){
-      return /[s|S|r|R|b|B|g|G][0-9]{2,3}/.test(next[0].picked.basket)
+      return true
+      //return /[s|S|r|R|b|B|g|G][0-9]{2,3}/.test(next[0].picked.basket)
     }
 
     //TODO: check other fields
