@@ -67,7 +67,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
       .ensure('verifiedAt').typeDateTime()
         .custom(doc => doc.qty.from || doc.qty.to).withMessage('cannot be set unless qty.from or qty.to is set')
         .custom(doc => doc.exp.from || doc.exp.to).withMessage('cannot be set unless exp.from or exp.to is set')
-      .ensure('next').custom(properNextArray).withMessage('Next array is imporperly formatted')
+      .ensure('next').custom(properNextArray).withMessage('Next array is improperly formatted')
       .ensure('qty').default(doc => Object()).typeObject()
       .ensure('qty.from').typeNumber().min(0).max(3000)
       .ensure('qty.to').typeNumber().min(0).max(3000)
@@ -111,7 +111,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
 
   function properNextArray(doc){
     return true ////TODO: come back to this function later on, currently the UI forces format, and there's too much already being tested 04/2020
-    
+
     let next = doc.next
 
     if(next.length == 0) return true
