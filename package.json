@@ -1,4 +1,28 @@
 {
+  "_from": "github:dscsa/pouch",
+  "_id": "pouch@0.0.0",
+  "_inBundle": false,
+  "_integrity": "",
+  "_location": "/pouch",
+  "_phantomChildren": {},
+  "_requested": {
+    "type": "git",
+    "raw": "dscsa/pouch",
+    "rawSpec": "dscsa/pouch",
+    "saveSpec": "github:dscsa/pouch",
+    "fetchSpec": null,
+    "gitCommittish": null
+  },
+  "_requiredBy": [
+    "#USER",
+    "/"
+  ],
+  "_resolved": "github:dscsa/pouch#e51cdb058ed90ebf1efdeddde0c50e32a76ea94e",
+  "_spec": "dscsa/pouch",
+  "_where": "/dscsa",
+  "bundleDependencies": false,
+  "deprecated": false,
+  "description": "[![npm version](https://badge.fury.io/js/abab.svg)](https://www.npmjs.com/package/abab) [![Build Status](https://travis-ci.org/jsdom/abab.svg?branch=master)](https://travis-ci.org/jsdom/abab)",
   "name": "pouch",
   "version": "0.0.0"
 }
