@@ -1,7 +1,8 @@
 "use strict"
 //Needs protocol not just // otherwise PouchDB._ajx does not get set
 //Don't include the port # since server will always be port 80
-let baseurl = window.location.protocol+'//'+window.location.hostname+'/'
+let baseurl = window.location.protocol+'//'+window.location.hostname+'/';
+
 //console.log(baseurl)
 
 //TODO Authenticate users and replicate dbs on login
