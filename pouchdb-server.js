@@ -1,8 +1,8 @@
 "use strict"
 
 //TODO create a _users db
-let baseUrl   = 'http://localhost:5984/'
-let admin     = {ajax:{auth:require('../../keys/dev').couch, timeout:60000}}
+let baseUrl   = process.env.COUCH_URL
+let admin     = {ajax:{auth:{username: process.env.COUCH_USERNAME, password: process.env.COUCH_PASSWORD}, timeout:60000}}
 let query     = require('pouchdb-mapreduce')
 let adapter   = require('pouchdb-adapter-http')
 let model     = require('./pouchdb-model.js')
