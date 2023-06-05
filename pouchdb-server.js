@@ -14,7 +14,7 @@ schema._users = model()
 
 for (let db in schema) {
 
-  let resource = require('../server/models/'+db)
+  let resource = require('./models/'+db)
 
   schema[db] = resource.validate(schema[db])
 
