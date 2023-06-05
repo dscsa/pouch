@@ -6,7 +6,7 @@ let admin     = {ajax:{auth:{username: process.env.COUCH_USERNAME, password: pro
 let query     = require('pouchdb-mapreduce')
 let adapter   = require('pouchdb-adapter-http')
 let model     = require('./pouchdb-model.js')
-let ajax      = require('../server/helpers/ajax.js')()
+let ajax      = require('./helpers/ajax.js')()
 let schema    = require('./pouchdb-schema.js')(model, micro)
 let PouchDB   = require('pouchdb-core').plugin(query).plugin(adapter)
 
