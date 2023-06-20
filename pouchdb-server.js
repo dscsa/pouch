@@ -1,14 +1,15 @@
 "use strict"
 
 //TODO create a _users db
-let baseUrl   = 'http://localhost:5984/'
+let baseUrl   = 'http://0.0.0.0:5984/'
 let admin     = {ajax:{auth:require('../../keys/dev').couch, timeout:60000}}
 let query     = require('pouchdb-mapreduce')
 let adapter   = require('pouchdb-adapter-http')
+let find   = require('pouchdb-find')
 let model     = require('./pouchdb-model.js')
 let ajax      = require('../server/helpers/ajax.js')()
 let schema    = require('./pouchdb-schema.js')(model, micro)
-let PouchDB   = require('pouchdb-core').plugin(query).plugin(adapter)
+let PouchDB   = require('pouchdb-core').plugin(query).plugin(adapter).plugin(find)
 
 schema._users = model()
 
@@ -57,6 +58,7 @@ for (let db in schema) {
 
         let old = ddocs.rows[i].doc
 
+        // see if any of the keys for the view contain -idx  if so we skip this doc
         if (old._id != ddoc._id)
           continue
 
@@ -74,8 +76,13 @@ for (let db in schema) {
     }
 
     for (let row of ddocs.rows) {
-      console.log('removing ddoc', row.doc._id)
-      exports[db].remove(row.doc, admin)
+     //Skip indexes
+      if (row.views && !Object.keys(row.views).some(function (k) {
+        return k.indexOf("-idx")
+      })) {
+        console.log('removing ddoc', row.doc._id)
+        exports[db].remove(row.doc, admin)
+      }
     }
   })
 

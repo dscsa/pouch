@@ -60,7 +60,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
       .ensure('_id').default(transactionId).typeString()
       .ensure('drug').rules(drug)
       .ensure('drug._id').required().pattern(/Unspecified|\d{4}-\d{4}|\d{5}-\d{3}|\d{5}-\d{4}|\d{5}-\d{5}/)
-      .ensure('user._id').required().pattern(/^\d{10}$|^\d{10}\.\d{10}$/)
+      .ensure('user._id').required().pattern(/^[a-z_]+|^\d{10}$|^\d{10}\.\d{10}$/)
       .ensure('shipment._id').required()
         .pattern(/^\d{10}$|^\d{10}\.\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{10}$/)
         .withMessage('must be a string in the format "account.from._id" or "account.from._id"."account.to._id"."new Date().toJSON()"')
@@ -80,7 +80,7 @@ function pouchSchema(pouchModel, microSecond, methods = {}) {
         .pattern(/^20[12]/) //We were getting malformed dates like 0201-06
       .ensure('bin')
         //Prepack, New Aisle, Old Shelf
-        .pattern(/[A-Za-z]\d{2}|[A-Z][1-6][0-6]\d{2}|[A-Za-z][0-6]\d{2}/) 
+        .pattern(/((RPCK)-)?[A-Za-z]?(\d{2}|[1-6][0-6]\d{2}|[0-6]\d{2})/)
         .custom(doc => /[A-Za-z]\d{2}/.test(doc.bin) || doc.verifiedAt).withMessage('a nonrepack bin can only be set when verifiedAt is set')
       .ensure('updatedAt').set(_ => new Date().toJSON())
       .methods(methods.transaction),
