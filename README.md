@@ -1,3 +1,8 @@
+# Deprecated
+This repository is no longer in use. The files within have been consolidated into https://github.com/dscsa/server.
+
+
+
 # abab
 
 [![npm version](https://badge.fury.io/js/abab.svg)](https://www.npmjs.com/package/abab) [![Build Status](https://travis-ci.org/jsdom/abab.svg?branch=master)](https://travis-ci.org/jsdom/abab)
