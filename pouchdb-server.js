@@ -1,12 +1,12 @@
 "use strict"
 
 //TODO create a _users db
-let baseUrl   = 'http://localhost:5984/'
-let admin     = {ajax:{auth:require('../../keys/dev').couch, timeout:60000}}
+let baseUrl   = process.env.COUCH_URL
+let admin     = {ajax:{auth:{username: process.env.COUCH_USERNAME, password: process.env.COUCH_PASSWORD}, timeout:60000}}
 let query     = require('pouchdb-mapreduce')
 let adapter   = require('pouchdb-adapter-http')
 let model     = require('./pouchdb-model.js')
-let ajax      = require('../server/helpers/ajax.js')()
+let ajax      = require('./helpers/ajax.js')()
 let schema    = require('./pouchdb-schema.js')(model, micro)
 let PouchDB   = require('pouchdb-core').plugin(query).plugin(adapter)
 
@@ -14,7 +14,7 @@ schema._users = model()
 
 for (let db in schema) {
 
-  let resource = require('../server/models/'+db)
+  let resource = require('./models/'+db)
 
   schema[db] = resource.validate(schema[db])
 
